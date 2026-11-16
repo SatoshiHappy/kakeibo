@@ -1,22 +1,19 @@
 /* 色・字・角丸はモック 14 版(docs/work/2026111501_方針検討/outputs/モック_スマホ版_生成.py)と基盤 §2.2 の値。
-   ダークは端末の設定に従う(切り替えは置かない)。費目の色 --c1〜--c9 は dataviz の検査に通した配色 */
+   明暗は light-dark() で、既定は端末の設定に従い、≡ のメニューで端末ごとに固定できる(基盤 §2.2 の表 Y)。費目の色 --c1〜--c9 は dataviz の検査に通した配色 */
 :root {
   color-scheme: light dark;
-  --bg: #FFFFFF; --ground: #F3F4F2; --fg: #202522; --muted: #5C665F; --faint: #6E7972; --border: #EDEFEC; --input: #8A958E;
-  --primary: #246747; --primary-fg: #FFFFFF; --soft: #E8F5EC; --hover: #F1F8F3; --danger: #A8321F;
-  --warn-bg: #FFF4DF; --warn-fg: #8A5A00; --ng-bg: #FDECEA; --done-bg: #EEF1EF;
-  --c1: #2A78D6; --c2: #EB6834; --c3: #1BAF7A; --c4: #EDA100; --c5: #E87BA4; --c6: #008300; --cfix: #8C98A4; --c7: #A3ADA6; --c8: #CBD3CE; --c9: #6250D6;
+  --bg: light-dark(#FFFFFF, #1C221E); --ground: light-dark(#F3F4F2, #121513); --fg: light-dark(#202522, #E8ECE9); --muted: light-dark(#5C665F, #AEB8B1); --faint: light-dark(#6E7972, #8F9A93); --border: light-dark(#EDEFEC, #2A332D); --input: light-dark(#8A958E, #7A857E);
+  --primary: light-dark(#246747, #7CC093); --primary-fg: light-dark(#FFFFFF, #0E1A13); --soft: light-dark(#E8F5EC, #1F3127); --hover: light-dark(#F1F8F3, #1B2821); --danger: light-dark(#A8321F, #F2A090);
+  --warn-bg: light-dark(#FFF4DF, #3A2D12); --warn-fg: light-dark(#8A5A00, #F0C56B); --ng-bg: light-dark(#FDECEA, #3A1C17); --done-bg: light-dark(#EEF1EF, #242B26);
+  --c1: light-dark(#2A78D6, #3987E5); --c2: light-dark(#EB6834, #D95926); --c3: light-dark(#1BAF7A, #199E70); --c4: light-dark(#EDA100, #C98500); --c5: light-dark(#E87BA4, #D55181); --c6: light-dark(#008300, #008300); --cfix: light-dark(#8C98A4, #7D8894); --c7: light-dark(#A3ADA6, #7A857E); --c8: light-dark(#CBD3CE, #4A554E); --c9: light-dark(#6250D6, #9085E9);
   --font: 'Noto Sans JP', 'Hiragino Sans', 'Yu Gothic', system-ui, sans-serif;
   --num: 'Inter', 'Noto Sans JP', system-ui, sans-serif;
   --r: 10px; --r-card: 12px;
   --target-size: 44px; /* 押す所(基盤 §2.1) */
 
-  @media (prefers-color-scheme: dark) {
-    --bg: #1C221E; --ground: #121513; --fg: #E8ECE9; --muted: #AEB8B1; --faint: #8F9A93; --border: #2A332D; --input: #7A857E;
-    --primary: #7CC093; --primary-fg: #0E1A13; --soft: #1F3127; --hover: #1B2821; --danger: #F2A090;
-    --warn-bg: #3A2D12; --warn-fg: #F0C56B; --ng-bg: #3A1C17; --done-bg: #242B26;
-    --c1: #3987E5; --c2: #D95926; --c3: #199E70; --c4: #C98500; --c5: #D55181; --c6: #008300; --cfix: #7D8894; --c7: #7A857E; --c8: #4A554E; --c9: #9085E9;
-  }
+  /* 表 Y: この端末の設定(index.html の meta を theme.ts が書き換える)で端末の明暗より優先する */
+  &:has(> head > meta[name="color-scheme"][content="light"]) { color-scheme: light; }
+  &:has(> head > meta[name="color-scheme"][content="dark"]) { color-scheme: dark; }
 }
 
 html, body, #root { height: 100%; margin: 0; }
@@ -307,3 +304,12 @@ details.retired > summary { min-height: var(--target-size); display: flex; align
 .pickline { display: grid; grid-template-columns: minmax(0, 1fr) var(--target-size) var(--target-size); align-items: center; border-top: 1px solid var(--border); }
 .pickline .pickrow { border-top: 0; }
 .pickline .iconbtn:disabled { opacity: 0.3; }
+
+/* 画面の明るさの選び(≡ のメニュー。表 Y)。押す所は 44px 四方以上 */
+.scheme { flex-wrap: wrap; margin: 0; padding-block: 6px; border-inline: 0; border-bottom: 0; min-inline-size: 0; }
+.scheme legend { float: left; padding: 0; }
+.seg { display: flex; gap: 2px; padding: 2px; border-radius: var(--r); background: var(--ground); margin-left: auto; }
+.seg label { position: relative; min-height: var(--target-size); min-width: var(--target-size); display: grid; place-items: center; padding: 0 10px; border-radius: 8px; font-size: 12px; color: var(--muted); cursor: pointer; }
+.seg input { position: absolute; inset: 0; margin: 0; opacity: 0; cursor: pointer; }
+.seg label:has(input:checked) { background: var(--bg); color: var(--fg); font-weight: 700; }
+.seg label:has(input:focus-visible) { outline: 2px solid var(--primary); outline-offset: 1px; }
