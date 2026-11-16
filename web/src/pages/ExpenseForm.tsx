@@ -1,5 +1,5 @@
 // 確かめて保存(見本はモック 14 版の confirm)。下書きから・手入力・保存済みの支出を直す。正本: データと照合 §4.7・表 V・表 T・§5
-import { useMutation } from '@tanstack/react-query'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { del, get, set } from 'idb-keyval'
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router'
@@ -241,8 +241,8 @@ function Editor(props: {
     mutationFn: async () => {
       const b = toBody(draft)
       if (!b.ok) throw new FormErrors(b.errors)
-      // 直し始めた時の版を送る(ほかの人が後から直していたら口が 409 changed で断る)
-      if (mode.kind === 'expense') return api.request(`/api/expenses/${mode.expenseId}`, { method: 'PUT', json: { ...b.body, baseUpdatedAt: data.expense!.updatedAt } })
+      // 直し始めた時の版を送る(ほかの人が後から直していたら口が 409 changed で断る)。読み直した応答の版でなく、入力を始めた版(下書きが持つ)
+      if (mode.kind === 'expense') return api.request(`/api/expenses/${mode.expenseId}`, { method: 'PUT', json: { ...b.body, baseUpdatedAt: draft.baseUpdatedAt } })
       const receiptId = mode.kind === 'receipt' ? mode.receiptId : null
       const r = await api.request<{ id: number; reused?: boolean; updatedAt?: string }>('/api/expenses', {
         method: 'POST',
@@ -267,6 +267,26 @@ function Editor(props: {
       setErrors([errorText(e)])
     },
   })
+  // 結んだ明細を外す(J5)。保存と同時に走らないよう busy に入れる(口が結びの数を読んでから書くまでの間に外れないように)。
+  // 押した時点で段から行を消し、失敗したら戻して知らせる(基盤 §2.3)。支出の版は進まないので、直している入力はそのまま保存できる
+  const qc = useQueryClient()
+  const unlink = useMutation({
+    mutationFn: (chargeId: number) => api.request('/api/review/reject', { method: 'POST', json: { chargeId, expenseId: data.expense!.id } }),
+    onMutate: async (chargeId) => {
+      await qc.cancelQueries({ queryKey: [pathOf(mode)] })
+      const before = qc.getQueryData<FormResponse>([pathOf(mode)])
+      if (before?.expense) qc.setQueryData<FormResponse>([pathOf(mode)], { ...before, expense: { ...before.expense, charges: before.expense.charges.filter((c) => c.id !== chargeId) } })
+      return { before }
+    },
+    onError: (e, _v, ctx) => {
+      if (ctx?.before) qc.setQueryData([pathOf(mode)], ctx.before)
+      setErrors([errorText(e)])
+    },
+    onSettled: () => {
+      void refetchAfterSave({ queryKey: [pathOf(mode)] })
+      void refetchLists()
+    },
+  })
   const reread = useMutation({
     mutationFn: () => api.request(`/api/receipts/${(mode as { receiptId: number }).receiptId}/read`, { method: 'POST' }),
     onSettled: () => refetchAfterSave({ queryKey: [pathOf(mode)] }),
@@ -287,7 +307,7 @@ function Editor(props: {
   const line = totalLine(t.total, printed)
   const catName = new Map(data.categories.map((c) => [c.id, c.name]))
   const stockName = new Map(data.stockItems.map((s) => [s.id, s.name]))
-  const busy = save.isPending || remove.isPending || reread.isPending
+  const busy = save.isPending || remove.isPending || reread.isPending || unlink.isPending
 
   const right =
     mode.kind === 'receipt' ? (
@@ -418,7 +438,9 @@ function Editor(props: {
           ))}
         </ul>
       )}
-      {mode.kind === 'expense' && data.expense && data.expense.charges.length > 0 && <LinkedCharges expenseId={data.expense.id} charges={data.expense.charges} formPath={pathOf(mode)} />}
+      {mode.kind === 'expense' && data.expense && data.expense.charges.length > 0 && (
+        <LinkedCharges charges={data.expense.charges} busy={busy} pending={unlink.isPending} onUnlink={(chargeId) => unlink.mutate(chargeId)} />
+      )}
       {mode.kind === 'expense' && (
         <button className="sbtn dangerbtn" type="button" disabled={busy} onClick={() => setConfirm('delete')}>
           この支出を消す
@@ -689,19 +711,9 @@ function Photos({ receiptId, count, text, children }: { receiptId: number; count
 }
 
 /** 結んだカード明細の行と「この明細とは別の買い物」(差の無い自動の結びも人が外せる = 要求「照合」。2026-11-17 ユーザー回答)。
- * 外すのは確かめるの「別の買い物」と同じ口(POST /api/review/reject)。支出の版は進まないので、直している入力はそのまま保存できる */
-function LinkedCharges({ expenseId, charges, formPath }: { expenseId: number; charges: ExpenseDetail['charges']; formPath: string }) {
+ * 外すのは確かめるの「別の買い物」と同じ口(POST /api/review/reject)。送るのは呼ぶ側(Editor)の unlink */
+function LinkedCharges({ charges, busy, pending, onUnlink }: { charges: ExpenseDetail['charges']; busy: boolean; pending: boolean; onUnlink: (chargeId: number) => void }) {
   const [target, setTarget] = useState<number | null>(null)
-  const [error, setError] = useState<string | null>(null)
-  const reject = useMutation({
-    mutationFn: (chargeId: number) => api.request('/api/review/reject', { method: 'POST', json: { chargeId, expenseId } }),
-    onSuccess: () => setError(null),
-    onError: (e) => setError(errorText(e)),
-    onSettled: () => {
-      void refetchAfterSave({ queryKey: [formPath] })
-      void refetchLists()
-    },
-  })
   return (
     <section className="panel" aria-label="結んだカード明細">
       <h2>
@@ -716,26 +728,21 @@ function LinkedCharges({ expenseId, charges, formPath }: { expenseId: number; ch
               </span>
             </span>
             <b className="num">{c.amount === null ? '—' : yen(c.amount)}</b>
-            <button className="textbtn" type="button" disabled={reject.isPending} onClick={() => setTarget(c.id)}>
+            <button className="textbtn" type="button" disabled={busy} onClick={() => setTarget(c.id)}>
               この明細とは別の買い物
             </button>
           </li>
         ))}
       </ul>
-      {error && (
-        <p className="ferr" role="alert">
-          {error}
-        </p>
-      )}
       <Confirm
         open={target !== null}
         title="この明細とは別の買い物にしますか?"
         body="この明細の行とこの支出の結びを外し、また候補に出しません。明細の行は「明細から」の支出になります。"
         action="別の買い物"
-        busy={reject.isPending}
+        busy={pending}
         onClose={() => setTarget(null)}
         onAction={() => {
-          if (target !== null) reject.mutate(target)
+          if (target !== null) onUnlink(target)
           setTarget(null)
         }}
       />

@@ -256,9 +256,10 @@ expenses.post('/', async (c) => {
   const db = c.env.DB
   const user = c.get('user')
 
-  const existing = await db.prepare('SELECT id, updated_at FROM expenses WHERE client_request_id = ?').bind(body.clientRequestId).first<{ id: number; updated_at: string }>()
-  // 送り直し: 前の要求で保存済み。reused と版(updatedAt)を付け、画面は今の入力で直す(PUT)かを決める(§4.7)
-  if (existing) return c.json({ id: existing.id, reused: true, updatedAt: existing.updated_at }, 200)
+  const existing = await db.prepare('SELECT id, created_at FROM expenses WHERE client_request_id = ?').bind(body.clientRequestId).first<{ id: number; created_at: string }>()
+  // 送り直し: 前の要求で保存済み。reused と、その要求が作った時の版(created_at = 作った時の updated_at)を付ける。
+  // 画面はこの版で今の入力を直す(PUT)ので、作った後にほかの人が直していれば 409 changed で断られる(§4.7)
+  if (existing) return c.json({ id: existing.id, reused: true, updatedAt: existing.created_at }, 200)
 
   if (!(await validCategoryIds(db, body.items.map((i) => i.categoryId), new Set()))) return c.json({ error: 'invalid_category' }, 400)
   if (!(await validStockItemIds(db, body.items.map((i) => i.stockItemId), new Set()))) return c.json({ error: 'invalid_stock_item' }, 400)
@@ -317,8 +318,8 @@ expenses.post('/', async (c) => {
     const msg = e instanceof Error ? e.message : ''
     if (msg.includes('UNIQUE constraint failed: expenses.receipt_id')) return c.json({ error: 'receipt_already_saved' }, 409)
     if (msg.includes('UNIQUE constraint failed: expenses.client_request_id')) {
-      const again = await db.prepare('SELECT id, updated_at FROM expenses WHERE client_request_id = ?').bind(body.clientRequestId).first<{ id: number; updated_at: string }>()
-      return c.json({ id: again!.id, reused: true, updatedAt: again!.updated_at }, 200)
+      const again = await db.prepare('SELECT id, created_at FROM expenses WHERE client_request_id = ?').bind(body.clientRequestId).first<{ id: number; created_at: string }>()
+      return c.json({ id: again!.id, reused: true, updatedAt: again!.created_at }, 200)
     }
     if (msg.includes('FOREIGN KEY constraint failed')) return c.json({ error: 'invalid_reference' }, 400)
     throw e
@@ -413,9 +414,10 @@ expenses.patch('/:id{[0-9]+}/items/:position{[0-9]+}', async (c) => {
   // やめた費目は、この支出の品目にすでに付いているものなら使える(PUT と同じ支出の単位。§1.6)
   const onExpense = await db.prepare('SELECT category_id FROM items WHERE expense_id = ?').bind(id).all<{ category_id: number }>()
   if (!(await validCategoryIds(db, [parsed.data.categoryId], new Set(onExpense.results.map((r) => r.category_id))))) return c.json({ error: 'invalid_category' }, 400)
+  const now = nowIso() // 版の式は同じ時刻を 2 回受ける
   await db.batch([
     db.prepare('UPDATE items SET category_id = ? WHERE expense_id = ? AND position = ?').bind(parsed.data.categoryId, id, position),
-    db.prepare(`UPDATE expenses SET updated_at = ${BUMP_VERSION} WHERE id = ?`).bind(nowIso(), nowIso(), id),
+    db.prepare(`UPDATE expenses SET updated_at = ${BUMP_VERSION} WHERE id = ?`).bind(now, now, id),
   ])
   return c.json({ id })
 })

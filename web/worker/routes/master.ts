@@ -69,10 +69,11 @@ master.patch('/categories/:id{[0-9]+}', async (c) => {
   const id = Number(c.req.param('id'))
   const b = parsed.data
   if (b.kind !== undefined && !(await kindExists(db, b.kind))) return c.json({ error: 'invalid_kind' }, 400)
-  const before = await db.prepare('SELECT retired_at FROM categories WHERE id = ?').bind(id).first<{ retired_at: string | null }>()
+  const before = await db.prepare('SELECT retired_at, kind FROM categories WHERE id = ?').bind(id).first<{ retired_at: string | null; kind: string }>()
   if (!before) return c.json({ error: 'not_found' }, 404)
-  // やめる = やめた月(日本時間)から予算なし(§1.4 の「この月から予算なし」の行を書く)。前の月は当時の予算のまま。戻しても予算は戻らない
-  const retiring = b.retired === true && before.retired_at === null
+  // やめる・種類を変える = その月(日本時間)から予算なし(§1.4 の「この月から予算なし」の行を書く)。前の月は当時の予算のまま。戻しても予算は戻らない
+  // (種類を変えたときも書くのは、予算は毎月変わる費目だけが持ち、固定費・臨時から戻したときに前の予算が出てこないように。§4.11)
+  const retiring = (b.retired === true && before.retired_at === null) || (b.kind !== undefined && b.kind !== before.kind)
   try {
     const [res] = await db.batch([
       db

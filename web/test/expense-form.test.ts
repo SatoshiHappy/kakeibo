@@ -165,9 +165,11 @@ describe('保存の口の検査(§1.6)', () => {
     expect((await env.DB.prepare('SELECT store_name FROM expenses WHERE id = ?').bind(id).first<{ store_name: string }>())!.store_name).toBe('さとの直し')
     const { baseUpdatedAt: _b, ...noVersion } = { ...body, baseUpdatedAt: '' }
     expect((await request(`/api/expenses/${id}`, { method: 'PUT', headers: headers(), body: JSON.stringify(noVersion) })).status).toBe(400)
-    // 送り直し(同じ clientRequestId)は reused と今の版を返す
+    // 送り直し(同じ clientRequestId)は reused と、作った時の版を返す(作った後に直されていれば、その版での直しは断られる)
+    const created = (await env.DB.prepare('SELECT created_at FROM expenses WHERE id = ?').bind(id).first<{ created_at: string }>())!.created_at
     const again = await post(first)
-    expect(await again.json()).toEqual({ id, reused: true, updatedAt: await versionOf(id) })
+    expect(await again.json()).toEqual({ id, reused: true, updatedAt: created })
+    expect((await put(id, { ...body, storeName: '送り直しの直し', baseUpdatedAt: created })).status).toBe(409)
   })
   it('同時の直し: 口の確かめの後・書く前に版が進んでいたら、batch ごと断って品目も消さない(claimVersion)', async () => {
     const { id } = await (await post(base({ spentOn: '2026-10-02' }))).json<{ id: number }>()

@@ -213,6 +213,22 @@ describe('予算は毎月変わる費目だけ(§4.11)', () => {
   })
 })
 
+describe('種類を変えると、その月から予算なし(§1.4・§4.11)', () => {
+  it('毎月変わる → 固定費 → 毎月変わると戻しても、前の予算は出てこない', async () => {
+    const month = jstDate().slice(0, 7)
+    const { id } = await (await request('/api/categories', json('POST', { name: '習い事', kind: 'variable' }))).json<{ id: number }>()
+    await request('/api/budgets', json('PUT', { categoryId: id, fromMonth: '2026-01', amount: 8000 }))
+    expect((await request(`/api/categories/${id}`, json('PATCH', { kind: 'fixed' }))).status).toBe(200)
+    expect((await request(`/api/categories/${id}`, json('PATCH', { kind: 'variable' }))).status).toBe(200)
+    type P = { categories: { id: number; budget: number | null }[] }
+    expect((await (await get(`/api/prefs?month=${month}`)).json<P>()).categories.find((c) => c.id === id)!.budget).toBeNull()
+    // 種類を変えない直し(名前だけ)は予算を消さない
+    await request('/api/budgets', json('PUT', { categoryId: id, fromMonth: month, amount: 9000 }))
+    await request(`/api/categories/${id}`, json('PATCH', { name: '習い事2', kind: 'variable' }))
+    expect((await (await get(`/api/prefs?month=${month}`)).json<P>()).categories.find((c) => c.id === id)!.budget).toBe(9000)
+  })
+})
+
 describe('費目と予算の画面の口(データと照合 §4.11)', () => {
   type Prefs = { month: string; categories: { id: number; name: string; kind: string; retired: boolean; systemRole: string | null; budget: number | null }[] }
   it('やめた費目も返し、その月に効く予算を添える(やめると、やめた月から予算なし。前の月は当時の予算のまま)', async () => {
