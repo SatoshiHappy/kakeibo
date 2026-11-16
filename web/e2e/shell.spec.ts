@@ -31,3 +31,15 @@ test('横にスクロールしない・押す所は 44px 以上', async ({ page 
     expect(box.height).toBeGreaterThanOrEqual(44)
   }
 })
+
+test('画面は時刻の帯(safe-area の上)の下から始まる: 上の帯が開いた直後から隠れない', async ({ page }) => {
+  // WebKit の試験では safe-area を作れないので、画面の外枠の規則が safe-area の上の余白を持つことを CSSOM で確かめる
+  await page.goto('/')
+  const padding = await page.evaluate(() => {
+    for (const sheet of [...document.styleSheets].filter((s) => !s.href || new URL(s.href).origin === location.origin)) {
+      for (const rule of [...sheet.cssRules]) if (rule instanceof CSSStyleRule && rule.selectorText === '.screen') return rule.style.getPropertyValue('padding-top')
+    }
+    return null
+  })
+  expect(padding).toContain('safe-area-inset-top')
+})

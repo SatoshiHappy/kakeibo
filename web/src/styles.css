@@ -33,7 +33,9 @@ b { font-weight: 700; }
 .visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 
 /* 画面の外枠: 1 列・幅 390px を下限・PC では中央に最大幅で置く(基盤 §2.1) */
-.screen { max-width: 440px; margin: 0 auto; min-height: 100%; display: flex; flex-direction: column; }
+/* 上は Dynamic Island と時刻の帯の下から始める(viewport-fit=cover なので、ホーム画面のアプリでは画面が帯の下まで広がる)。
+   これが無いと、上の帯(.bar-top)が開いた直後は時刻の帯の裏に隠れ、スクロールした後だけ出る */
+.screen { max-width: 440px; margin: 0 auto; min-height: 100%; box-sizing: border-box; padding-top: env(safe-area-inset-top, 0px); display: flex; flex-direction: column; }
 .screen > main { flex: 1; display: flex; flex-direction: column; gap: 10px; padding-block: 0 12px; padding-left: max(12px, env(safe-area-inset-left, 0px)); padding-right: max(12px, env(safe-area-inset-right, 0px)); }
 .bar-top { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: var(--ground); min-height: 44px; display: flex; align-items: center; gap: 4px; padding-left: max(4px, env(safe-area-inset-left, 0px)); padding-right: max(8px, env(safe-area-inset-right, 0px)); }
 .bar-top h1 { font-size: 17px; font-weight: 700; margin: 0; flex: 1; }
