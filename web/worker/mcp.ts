@@ -85,7 +85,7 @@ function buildServer(call: ReturnType<typeof caller>) {
   server.registerTool(
     'update_expense',
     {
-      description: '人が入れた支出を直す(日付・店・支払い方法・品目・値引きを全部置き換える)。明細から作った支出は set_item_category で費目だけ直せる。',
+      description: '人が入れた支出を直す(日付・店・支払い方法・品目・値引きを全部置き換える)。先に支出を読み、その updatedAt を baseUpdatedAt に渡す(後からほかの人が直していたら 409 changed で断られるので、読み直してやり直す)。明細から作った支出は set_item_category で費目だけ直せる。',
       inputSchema: { id: z.number().int(), ...expenseFields },
       annotations: { destructiveHint: true, idempotentHint: true },
     },

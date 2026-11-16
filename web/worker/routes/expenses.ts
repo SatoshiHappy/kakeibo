@@ -61,8 +61,12 @@ const bodyOf = (create: boolean) =>
     items: z.array(itemOf(create)).min(1).max(200),
     adjustments: z.array(adjustmentSchema).max(20).describe('レシート全体にかかる値引き・外税。無ければ []'),
   })
-/** 直す(PUT・MCP の update_expense) */
-export const expenseBody = bodyOf(false)
+/** 直す(PUT・MCP の update_expense)。baseUpdatedAt = 直し始めた時の支出の版(読んだ支出の updatedAt)。今の版と違えば 409 changed */
+export const expenseBody = bodyOf(false).extend({
+  baseUpdatedAt: z.string().min(1).describe('直し始めた時に読んだ支出の updatedAt(ほかの人が後から直していたら保存を断る)'),
+})
+/** 作る・直すの両方にある中身(品目と値引き・外税) */
+type Content = z.infer<ReturnType<typeof bodyOf>>
 /** 作る(POST・MCP の add_expense) */
 export const createBody = bodyOf(true).extend({
   clientRequestId: z.string().min(1).max(100).describe('この支出を表す一意の文字列(UUID など)。送り直すときは同じ値'),
@@ -103,12 +107,12 @@ async function validCategoryIds(db: D1Database, ids: number[], allowRetired: Set
   return ids.every((id) => usable.has(id))
 }
 
-function amounts(body: z.infer<typeof expenseBody>) {
+function amounts(body: Content) {
   const positioned = body.items.map((it, i) => ({ position: i + 1, baseAmount: it.baseAmount, taxRate: it.taxRate }))
   return distribute(positioned, body.adjustments)
 }
 
-function itemStatements(db: D1Database, expenseRef: { sql: string; bind: unknown }, body: z.infer<typeof expenseBody>, dist: Map<number, number>) {
+function itemStatements(db: D1Database, expenseRef: { sql: string; bind: unknown }, body: Content, dist: Map<number, number>) {
   return [
     ...body.items.map((it, i) =>
       db
@@ -252,9 +256,9 @@ expenses.post('/', async (c) => {
   const db = c.env.DB
   const user = c.get('user')
 
-  const existing = await db.prepare('SELECT id FROM expenses WHERE client_request_id = ?').bind(body.clientRequestId).first<{ id: number }>()
-  // 送り直し: 前の要求で保存済み。reused を付け、画面は今の入力で直す(PUT)かを決める(§4.7)
-  if (existing) return c.json({ id: existing.id, reused: true }, 200)
+  const existing = await db.prepare('SELECT id, updated_at FROM expenses WHERE client_request_id = ?').bind(body.clientRequestId).first<{ id: number; updated_at: string }>()
+  // 送り直し: 前の要求で保存済み。reused と版(updatedAt)を付け、画面は今の入力で直す(PUT)かを決める(§4.7)
+  if (existing) return c.json({ id: existing.id, reused: true, updatedAt: existing.updated_at }, 200)
 
   if (!(await validCategoryIds(db, body.items.map((i) => i.categoryId), new Set()))) return c.json({ error: 'invalid_category' }, 400)
   if (!(await validStockItemIds(db, body.items.map((i) => i.stockItemId), new Set()))) return c.json({ error: 'invalid_stock_item' }, 400)
@@ -313,8 +317,8 @@ expenses.post('/', async (c) => {
     const msg = e instanceof Error ? e.message : ''
     if (msg.includes('UNIQUE constraint failed: expenses.receipt_id')) return c.json({ error: 'receipt_already_saved' }, 409)
     if (msg.includes('UNIQUE constraint failed: expenses.client_request_id')) {
-      const again = await db.prepare('SELECT id FROM expenses WHERE client_request_id = ?').bind(body.clientRequestId).first<{ id: number }>()
-      return c.json({ id: again!.id, reused: true }, 200)
+      const again = await db.prepare('SELECT id, updated_at FROM expenses WHERE client_request_id = ?').bind(body.clientRequestId).first<{ id: number; updated_at: string }>()
+      return c.json({ id: again!.id, reused: true, updatedAt: again!.updated_at }, 200)
     }
     if (msg.includes('FOREIGN KEY constraint failed')) return c.json({ error: 'invalid_reference' }, 400)
     throw e
@@ -322,6 +326,22 @@ expenses.post('/', async (c) => {
   const created = (await db.prepare('SELECT id FROM expenses WHERE client_request_id = ?').bind(body.clientRequestId).first<{ id: number }>())!
   return c.json({ id: created.id }, 201)
 })
+
+/** 版(updated_at)を必ず進める式(時刻は秒までなので、同じ秒の 2 回目の直しは 1 秒足す。同じ版のまま後の直しが通らないように)。? に今の時刻を 2 回 */
+const BUMP_VERSION = `CASE WHEN ? > updated_at THEN ? ELSE strftime('%Y-%m-%dT%H:%M:%SZ', updated_at, '+1 second') END`
+
+/**
+ * 直す batch の先頭の 2 文: 読んだ版(baseUpdatedAt)のときだけ支出の行を書き換えて版を進め、進めなかったら(読んだ後にほかの直しが入った)
+ * 2 文目が updated_at を NULL にして NOT NULL で batch ごと断る(後の品目の消し・入れ直しも何も残らない)。changes() は同じ batch の直前の文の数
+ */
+export function claimVersion(db: D1Database, id: number, body: { spentOn: string; storeName: string; paymentMethod: string; baseUpdatedAt: string }, now: string) {
+  return [
+    db
+      .prepare(`UPDATE expenses SET spent_on = ?, store_name = ?, payment_method = ?, updated_at = ${BUMP_VERSION} WHERE id = ? AND updated_at = ?`)
+      .bind(body.spentOn, body.storeName, body.paymentMethod, now, now, id, body.baseUpdatedAt),
+    db.prepare('UPDATE expenses SET updated_at = CASE WHEN changes() = 1 THEN updated_at END WHERE id = ?').bind(id),
+  ]
+}
 
 // 人の支出を直す(日付・店・支払い方法・品目・調整)。結びは今のまま(§2.2)
 expenses.put('/:id{[0-9]+}', async (c) => {
@@ -331,9 +351,11 @@ expenses.put('/:id{[0-9]+}', async (c) => {
   if (body.spentOn > jstDate()) return c.json({ error: 'future_date' }, 400)
   const db = c.env.DB
   const id = Number(c.req.param('id'))
-  const row = await db.prepare('SELECT origin, spent_on FROM expenses WHERE id = ?').bind(id).first<{ origin: string; spent_on: string }>()
+  const row = await db.prepare('SELECT origin, spent_on, updated_at FROM expenses WHERE id = ?').bind(id).first<{ origin: string; spent_on: string; updated_at: string }>()
   if (!row) return c.json({ error: 'not_found' }, 404)
   if (row.origin !== 'person') return c.json({ error: 'statement_expense_is_fixed' }, 409)
+  // 開いた後にほかの人(端末)が直していたら断る(黙って前の直しを消さない。2026-11-17 ユーザー回答)。書く batch でももう一度確かめる
+  if (row.updated_at !== body.baseUpdatedAt) return c.json({ error: 'changed' }, 409)
 
   const current = await db
     .prepare('SELECT category_id, stock_item_id FROM items WHERE expense_id = ?')
@@ -365,15 +387,14 @@ expenses.put('/:id{[0-9]+}', async (c) => {
   )
   try {
     await db.batch([
+      ...claimVersion(db, id, body, nowIso()),
       db.prepare('DELETE FROM items WHERE expense_id = ?').bind(id),
       db.prepare('DELETE FROM expense_adjustments WHERE expense_id = ?').bind(id),
-      db
-        .prepare('UPDATE expenses SET spent_on = ?, store_name = ?, payment_method = ?, updated_at = ? WHERE id = ?')
-        .bind(body.spentOn, body.storeName, body.paymentMethod, nowIso(), id),
       ...itemStatements(db, ref, body, dist),
       ...matching,
     ])
   } catch (e) {
+    if (e instanceof Error && e.message.includes('NOT NULL constraint failed: expenses.updated_at')) return c.json({ error: 'changed' }, 409)
     if (e instanceof Error && e.message.includes('FOREIGN KEY constraint failed')) return c.json({ error: 'invalid_reference' }, 400)
     throw e
   }
@@ -394,7 +415,7 @@ expenses.patch('/:id{[0-9]+}/items/:position{[0-9]+}', async (c) => {
   if (!(await validCategoryIds(db, [parsed.data.categoryId], new Set(onExpense.results.map((r) => r.category_id))))) return c.json({ error: 'invalid_category' }, 400)
   await db.batch([
     db.prepare('UPDATE items SET category_id = ? WHERE expense_id = ? AND position = ?').bind(parsed.data.categoryId, id, position),
-    db.prepare('UPDATE expenses SET updated_at = ? WHERE id = ?').bind(nowIso(), id),
+    db.prepare(`UPDATE expenses SET updated_at = ${BUMP_VERSION} WHERE id = ?`).bind(nowIso(), nowIso(), id),
   ])
   return c.json({ id })
 })

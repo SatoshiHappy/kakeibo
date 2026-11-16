@@ -1,7 +1,7 @@
 // 確かめる一覧(表 L)と表 A-2・表 A-3、一覧での人の操作
 import { env } from 'cloudflare:workers'
 import { beforeEach, describe, expect, it } from 'vitest'
-import { accessToken, addUser, request, serveTestCerts } from './helpers'
+import { accessToken, addUser, request, serveTestCerts, versionOf } from './helpers'
 
 let token: string
 let seq = 0
@@ -145,6 +145,7 @@ describe('表 A-3(差あり)', () => {
     expect(await list()).toEqual([])
     // 支出の額を直して差が -1 → また出る
     await send(`/api/expenses/${p}`, 'PUT', {
+      baseUpdatedAt: await versionOf(p),
       spentOn: day(10),
       storeName: '店',
       paymentMethod: 'rakuten_card',
@@ -190,6 +191,7 @@ describe('支出 1 : 明細の行 N(通販の分割発送)', () => {
 // 表の行の検査(基盤 §6)で見つかったテストの無い行(A-1 の 1 行・A-2 の 2 行・表 B の B1・B2・B4・B5・B8・B9)
 async function editExpense(id: number, spentOn: string, amount: number, paymentMethod = 'rakuten_card') {
   const res = await send(`/api/expenses/${id}`, 'PUT', {
+    baseUpdatedAt: await versionOf(id),
     spentOn,
     storeName: '店',
     paymentMethod,

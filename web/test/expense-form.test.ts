@@ -1,8 +1,9 @@
 // 確かめて保存の画面の口(データと照合 §4.7)
 import { env } from 'cloudflare:workers'
 import { beforeEach, describe, expect, it } from 'vitest'
+import { claimVersion } from '../worker/routes/expenses'
 import { jstDate } from '../worker/time'
-import { accessToken, addUser, request, serveTestCerts } from './helpers'
+import { accessToken, addUser, request, serveTestCerts, versionOf } from './helpers'
 
 let token: string
 let userId: number
@@ -118,7 +119,7 @@ describe('保存の送り直し(§4.7)', () => {
     const { id } = await first.json<{ id: number }>()
     const again = await send({ ...body, items: [{ ...body.items[0], baseAmount: 90 }] })
     expect(again.status).toBe(200)
-    expect(await again.json()).toEqual({ id, reused: true })
+    expect(await again.json()).toEqual({ id, reused: true, updatedAt: await versionOf(id) })
     const { n } = (await db.prepare("SELECT count(*) AS n FROM expenses WHERE client_request_id = 'resend-1'").first<{ n: number }>())!
     expect(n).toBe(1)
   })
@@ -136,7 +137,8 @@ describe('保存の口の検査(§1.6)', () => {
     ...over,
   })
   const post = (b: unknown) => request('/api/expenses', { method: 'POST', headers: headers(), body: JSON.stringify(b) })
-  const put = (id: number, b: unknown) => request(`/api/expenses/${id}`, { method: 'PUT', headers: headers(), body: JSON.stringify(b) })
+  // 版は今のもの(テストで上書きできる)
+  const put = async (id: number, b: object) => request(`/api/expenses/${id}`, { method: 'PUT', headers: headers(), body: JSON.stringify({ baseUpdatedAt: await versionOf(id), ...b }) })
   const addDay = (d: string, n: number) => new Date(Date.parse(`${d}T00:00:00Z`) + n * 86_400_000).toISOString().slice(0, 10)
 
   it('日付: 今日(日本時間)までは保存でき、明日は future_date で断る(作る・直すとも)', async () => {
@@ -150,6 +152,35 @@ describe('保存の口の検査(§1.6)', () => {
     expect(await tomorrow.json()).toEqual({ error: 'future_date' })
     const { clientRequestId: _c, receiptId: _r, ...body } = base()
     expect(await (await put(id, { ...body, spentOn: addDay(today, 1) })).json()).toEqual({ error: 'future_date' })
+  })
+  it('同時の直し: 開いた時の版(baseUpdatedAt)が今と違えば 409 changed で何も書かない。版が無ければ 400。送り直しの応答は版を返す', async () => {
+    const first = base({ spentOn: '2026-10-01', storeName: '前' })
+    const { id } = await (await post(first)).json<{ id: number }>()
+    const opened = await versionOf(id) // 2 人が同じ版で開いた
+    const { clientRequestId: _c, receiptId: _r, ...body } = base({ spentOn: '2026-10-01' })
+    expect((await put(id, { ...body, storeName: 'さとの直し', baseUpdatedAt: opened })).status).toBe(200)
+    const late = await put(id, { ...body, storeName: 'みさの直し', baseUpdatedAt: opened })
+    expect(late.status).toBe(409)
+    expect(await late.json()).toEqual({ error: 'changed' })
+    expect((await env.DB.prepare('SELECT store_name FROM expenses WHERE id = ?').bind(id).first<{ store_name: string }>())!.store_name).toBe('さとの直し')
+    const { baseUpdatedAt: _b, ...noVersion } = { ...body, baseUpdatedAt: '' }
+    expect((await request(`/api/expenses/${id}`, { method: 'PUT', headers: headers(), body: JSON.stringify(noVersion) })).status).toBe(400)
+    // 送り直し(同じ clientRequestId)は reused と今の版を返す
+    const again = await post(first)
+    expect(await again.json()).toEqual({ id, reused: true, updatedAt: await versionOf(id) })
+  })
+  it('同時の直し: 口の確かめの後・書く前に版が進んでいたら、batch ごと断って品目も消さない(claimVersion)', async () => {
+    const { id } = await (await post(base({ spentOn: '2026-10-02' }))).json<{ id: number }>()
+    const opened = await versionOf(id)
+    await env.DB.prepare("UPDATE expenses SET updated_at = '2000-01-01T00:00:00Z' WHERE id = ?").bind(id).run() // ほかの直しが入った
+    const db = env.DB
+    const write = db.batch([...claimVersion(db, id, { spentOn: '2026-10-02', storeName: '遅れた直し', paymentMethod: 'cash', baseUpdatedAt: opened }, '2026-11-17T00:00:00Z'), db.prepare('DELETE FROM items WHERE expense_id = ?').bind(id)])
+    await expect(write).rejects.toThrow('NOT NULL constraint failed: expenses.updated_at')
+    expect(await db.prepare('SELECT count(*) AS n FROM items WHERE expense_id = ?').bind(id).first<{ n: number }>()).toEqual({ n: 1 })
+    expect((await db.prepare('SELECT store_name FROM expenses WHERE id = ?').bind(id).first<{ store_name: string }>())!.store_name).not.toBe('遅れた直し')
+    // 読んだ版のままなら通る
+    await db.batch([...claimVersion(db, id, { spentOn: '2026-10-02', storeName: '間に合った直し', paymentMethod: 'cash', baseUpdatedAt: '2000-01-01T00:00:00Z' }, '2026-11-17T00:00:00Z')])
+    expect(await versionOf(id)).toBe('2026-11-17T00:00:00Z')
   })
   it('日付: 本当にない日(2026-02-29・2026-11-31)は 400 invalid_body。うるう日は通る', async () => {
     expect((await post(base({ spentOn: '2026-02-29' }))).status).toBe(400)

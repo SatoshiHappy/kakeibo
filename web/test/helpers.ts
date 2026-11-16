@@ -55,3 +55,8 @@ export function request(path: string, init: RequestInit = {}) {
   if (!headers.has('origin')) headers.set('origin', ORIGIN)
   return app.request(`${ORIGIN}${path}`, { ...init, headers }, env)
 }
+
+/** 支出の今の版(PUT の baseUpdatedAt に渡す) */
+export async function versionOf(id: number) {
+  return (await env.DB.prepare('SELECT updated_at FROM expenses WHERE id = ?').bind(id).first<{ updated_at: string }>())!.updated_at
+}

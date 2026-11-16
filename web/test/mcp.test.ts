@@ -214,7 +214,7 @@ describe('画面の API と同じ規則が掛かる', () => {
     await importCsv([{ date: day(7), amount: 500 }])
     const list = await callTool('list_expenses', { month: prevMonth })
     const st = (list.body!.expenses as { id: number; origin: string }[]).find((e) => e.origin === 'statement_purchase')!
-    expect(await callTool('update_expense', { id: st.id, ...expense(), clientRequestId: undefined })).toMatchObject({ isError: true, status: 409 })
+    expect(await callTool('update_expense', { id: st.id, ...expense(), clientRequestId: undefined, baseUpdatedAt: 'x' })).toMatchObject({ isError: true, status: 409 })
     expect(await callTool('delete_expense', { id: st.id })).toMatchObject({ isError: true, status: 409 })
     expect(await callTool('set_item_category', { id: st.id, position: 1, categoryId: 16 })).toMatchObject({ isError: false, status: 200 })
     const item = await db.prepare('SELECT category_id FROM items WHERE expense_id = ?').bind(st.id).first<{ category_id: number }>()
@@ -225,7 +225,8 @@ describe('画面の API と同じ規則が掛かる', () => {
     const added = await callTool('add_expense', expense())
     const id = added.body!.id
     const { clientRequestId: _omit, ...rest } = expense({ storeName: '八百屋' })
-    expect(await callTool('update_expense', { id, ...rest })).toMatchObject({ isError: false, status: 200 })
+    const { updatedAt } = (await callTool('get_expense', { id })).body as { updatedAt: string }
+    expect(await callTool('update_expense', { id, ...rest, baseUpdatedAt: updatedAt })).toMatchObject({ isError: false, status: 200 })
     expect((await callTool('get_expense', { id })).body).toMatchObject({ storeName: '八百屋' })
     expect(await callTool('delete_expense', { id })).toMatchObject({ isError: false, status: 204 })
     expect((await callTool('get_expense', { id })).status).toBe(404)

@@ -1,7 +1,7 @@
 // 取り込み(表 C の C10〜C16)と照合(表 A-1・表 B・§2.2〜§2.4)を口から通す
 import { env } from 'cloudflare:workers'
 import { beforeEach, describe, expect, it } from 'vitest'
-import { accessToken, addUser, request, serveTestCerts } from './helpers'
+import { accessToken, addUser, request, serveTestCerts, versionOf } from './helpers'
 
 let token: string
 let seq = 0
@@ -215,6 +215,7 @@ describe('人の支出を消す・直す(§2.2)', () => {
       method: 'PUT',
       headers: { ...auth(), 'content-type': 'application/json' },
       body: JSON.stringify({
+        baseUpdatedAt: await versionOf(p),
         spentOn: day(10),
         storeName: 'x',
         paymentMethod: 'rakuten_card',

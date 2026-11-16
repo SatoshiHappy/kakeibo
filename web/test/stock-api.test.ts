@@ -3,7 +3,7 @@ import { env } from 'cloudflare:workers'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { undoCutoff } from '../worker/domain/stock'
 import { nowIso } from '../worker/time'
-import { accessToken, addUser, request, serveTestCerts } from './helpers'
+import { accessToken, addUser, request, serveTestCerts, versionOf } from './helpers'
 
 let token: string
 let seq = 0
@@ -100,6 +100,7 @@ describe('数は品目と動きから導く(§2.5)', () => {
     const put = await request(
       `/api/expenses/${expenseId}`,
       json('PUT', {
+        baseUpdatedAt: await versionOf(expenseId),
         spentOn: '2026-11-10',
         storeName: 's',
         paymentMethod: 'cash',
@@ -128,6 +129,7 @@ describe('数は品目と動きから導く(§2.5)', () => {
     const put = await request(
       `/api/expenses/${expenseId}`,
       json('PUT', {
+        baseUpdatedAt: await versionOf(expenseId),
         spentOn: '2026-11-11',
         storeName: 's',
         paymentMethod: 'cash',

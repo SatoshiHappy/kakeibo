@@ -36,7 +36,7 @@ test('保存の応答が届かなかった後に額を直して押し直すと�
   }
 })
 
-test('支出を直す画面は、ほかの端末で直された後に開き直すと新しい値から始める(端末に残った古い応答を使わない)', async ({ page }) => {
+test('支出を直す画面は、ほかの端末で直された後の保存を断り、開き直すと新しい値から始める(端末に残った古い応答を使わない)', async ({ page }) => {
   await page.goto('/list')
   const origin = originOf(page)
   const body = (baseAmount: number) => ({
@@ -51,8 +51,13 @@ test('支出を直す画面は、ほかの端末で直された後に開き直�
   try {
     await page.goto(`/expenses/${id}`)
     await expect(page.locator('.savebar .big')).toHaveText('¥100')
-    // ほかの端末で直す
-    expect((await page.request.put(`/api/expenses/${id}`, { headers: { origin }, data: body(200) })).status()).toBe(200)
+    // ほかの端末で直す(読んだ版を送る)
+    const { updatedAt } = (await (await page.request.get(`/api/expenses/${id}`)).json()) as { updatedAt: string }
+    expect((await page.request.put(`/api/expenses/${id}`, { headers: { origin }, data: { ...body(200), baseUpdatedAt: updatedAt } })).status()).toBe(200)
+    // 開いたままの画面で保存すると、前の直しを消さずに断って知らせる(同時の直し)
+    await page.getByRole('button', { name: '変更を保存' }).click()
+    await expect(page.getByRole('alert')).toContainText('ほかの人(ほかの端末)がこの支出を先に直しました')
+    await expect(page).toHaveURL(new RegExp(`/expenses/${id}$`))
     // 開き直す(端末には ¥100 の応答が残っている)
     await page.goto('/list')
     await page.goto(`/expenses/${id}`)

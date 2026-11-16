@@ -179,6 +179,8 @@ function errorText(e: unknown): string {
       return '支払いを選び直してください。'
     case 'future_date':
       return '日付が今日より後です。買った日を入れてください。'
+    case 'changed':
+      return 'ほかの人(ほかの端末)がこの支出を先に直しました。開き直して、もう一度直してください(今の入力は保存されていません)。'
     case 'receipt_already_saved':
     case 'saved_receipt':
       return 'このレシートはもう支出に保存されています(ほかの端末で保存したなど)。開き直してください。'
@@ -238,14 +240,15 @@ function Editor(props: {
     mutationFn: async () => {
       const b = toBody(draft)
       if (!b.ok) throw new FormErrors(b.errors)
-      if (mode.kind === 'expense') return api.request(`/api/expenses/${mode.expenseId}`, { method: 'PUT', json: b.body })
+      // 直し始めた時の版を送る(ほかの人が後から直していたら口が 409 changed で断る)
+      if (mode.kind === 'expense') return api.request(`/api/expenses/${mode.expenseId}`, { method: 'PUT', json: { ...b.body, baseUpdatedAt: data.expense!.updatedAt } })
       const receiptId = mode.kind === 'receipt' ? mode.receiptId : null
-      const r = await api.request<{ id: number; reused?: boolean }>('/api/expenses', {
+      const r = await api.request<{ id: number; reused?: boolean; updatedAt?: string }>('/api/expenses', {
         method: 'POST',
         json: { ...b.body, clientRequestId: draft.clientRequestId, receiptId },
       })
       // 前に押した保存が届いていた(応答だけ落ちた)。その後に直した入力を捨てないよう、今の入力で直す
-      if (r.reused) await api.request(`/api/expenses/${r.id}`, { method: 'PUT', json: b.body })
+      if (r.reused) await api.request(`/api/expenses/${r.id}`, { method: 'PUT', json: { ...b.body, baseUpdatedAt: r.updatedAt } })
       return r
     },
     onMutate: () => setErrors([]),
