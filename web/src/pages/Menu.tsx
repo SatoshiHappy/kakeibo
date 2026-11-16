@@ -1,4 +1,5 @@
 // ≡ のメニュー(基盤 §2.2: たまに使うものをしまう。モック 14 版の menu)
+import { useId } from 'react'
 import { Link } from 'react-router'
 import { Icon } from '../components/Icon'
 import { Screen, TopBar } from '../components/Shell'
@@ -48,25 +49,30 @@ export function Menu() {
   )
 }
 
-/** 画面の明るさ(表 Y)。この端末だけに残す */
+/** 画面の明るさ(表 Y)。この端末だけに残す。自動の選びには今の端末の明暗を添える */
 function ColorChoice() {
   const { setting, system } = useColorSetting()
-  const options: { value: ColorSetting; label: string }[] = [
-    { value: 'system', label: `自動(今は${SCHEME_NAME[system]})` },
+  const titleId = useId()
+  const options: { value: ColorSetting; label: string; hint?: string }[] = [
+    { value: 'system', label: '自動', hint: `(今は${SCHEME_NAME[system]})` },
     { value: 'light', label: 'ライト' },
     { value: 'dark', label: 'ダーク' },
   ]
   return (
-    <fieldset className="lrow scheme">
-      <legend className="mi">画面の明るさ(この端末)</legend>
-      <div className="seg">
+    <div className="lrow scheme">
+      <span className="mi">
+        <Icon name="moon" />
+        <span id={titleId}>画面の明るさ(この端末)</span>
+      </span>
+      <div className="seg" role="group" aria-labelledby={titleId}>
         {options.map((o) => (
-          <label key={o.value}>
-            <input type="radio" name="color-scheme" value={o.value} checked={setting === o.value} onChange={() => saveSetting(o.value)} />
-            <span>{o.label}</span>
-          </label>
+          <button key={o.value} type="button" aria-pressed={setting === o.value} onClick={() => saveSetting(o.value)}>
+            {o.label}
+            {o.hint && <span className="visually-hidden">{o.hint}</span>}
+          </button>
         ))}
       </div>
-    </fieldset>
+      <p className="note">自動は iPhone の設定に合わせます(今は{SCHEME_NAME[system]})。</p>
+    </div>
   )
 }

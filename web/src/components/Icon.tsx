@@ -90,6 +90,7 @@ const PATHS = {
       <path d="M12 11v6M12 7.5h.01" />
     </>
   ),
+  moon: <path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z" />,
   bell: (
     <>
       <path d="M6 16V11a6 6 0 0 1 12 0v5l2 2H4z" />
