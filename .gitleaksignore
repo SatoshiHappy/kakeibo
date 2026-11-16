@@ -1,0 +1,3 @@
+# Cloudflare Access の AUD タグ(秘密ではない。ログインへの転送の URL に載る値。2026-11-16 ユーザーが誤検出と確認)
+web/worker-configuration.d.ts:generic-api-key:8
+web/wrangler.jsonc:generic-api-key:28
