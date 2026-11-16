@@ -43,3 +43,21 @@ test('画面は時刻の帯(safe-area の上)の下から始まる: 上の帯が
   })
   expect(padding).toContain('safe-area-inset-top')
 })
+
+test('下のタブが無い画面は下の safe-area を空け、保存の帯の画面は帯が空ける(いちばん下の行がホームバーに重ならない)', async ({ page }) => {
+  await page.goto('/menu')
+  const rules = await page.evaluate(() => {
+    const found: Record<string, string> = {}
+    for (const sheet of [...document.styleSheets].filter((s) => !s.href || new URL(s.href).origin === location.origin)) {
+      for (const rule of [...sheet.cssRules]) if (rule instanceof CSSStyleRule) found[rule.selectorText] = rule.style.getPropertyValue('padding-bottom')
+    }
+    return found
+  })
+  expect(rules['.screen > main:last-child']).toContain('safe-area-inset-bottom')
+  expect(rules['.screen > main:has(> .savebar)']).toBe('0px')
+  // タブの無い画面では main が最後(規則が当たる)
+  expect(await page.locator('.screen > main').evaluate((m) => m.matches(':last-child'))).toBe(true)
+  await page.goto('/expenses/new')
+  await expect(page.locator('.savebar')).toBeVisible()
+  expect(await page.locator('.screen > main').evaluate((m) => getComputedStyle(m).paddingBottom)).toBe('0px')
+})

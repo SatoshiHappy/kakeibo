@@ -6,6 +6,13 @@ import { withoutLoginParam } from './lib/login'
 import { CACHE_VERSION, PERSIST_MAX_AGE, persister, queryClient } from './lib/query'
 import { router } from './router'
 import './lib/theme' // 表 Y: 残した明暗を当て直し、ほかのタブの変更を受ける
+// 字体は同梱する(別のオリジンの字体の CSS を待って最初の描画が止まらないように。基盤 §2.3 の 1)。数字の Inter はラテン文字だけ
+import '@fontsource/noto-sans-jp/400.css'
+import '@fontsource/noto-sans-jp/500.css'
+import '@fontsource/noto-sans-jp/700.css'
+import '@fontsource/inter/latin-400.css'
+import '@fontsource/inter/latin-500.css'
+import '@fontsource/inter/latin-700.css'
 import './styles.css'
 
 // ログインのための読み込みの印を URL から消す(基盤 §2.3 の 1)

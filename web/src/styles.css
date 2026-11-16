@@ -37,6 +37,9 @@ b { font-weight: 700; }
    これが無いと、上の帯(.bar-top)が開いた直後は時刻の帯の裏に隠れ、スクロールした後だけ出る */
 .screen { max-width: 440px; margin: 0 auto; min-height: 100%; box-sizing: border-box; padding-top: env(safe-area-inset-top, 0px); display: flex; flex-direction: column; }
 .screen > main { flex: 1; display: flex; flex-direction: column; gap: 10px; padding-block: 0 12px; padding-left: max(12px, env(safe-area-inset-left, 0px)); padding-right: max(12px, env(safe-area-inset-right, 0px)); }
+/* 下のタブが無い画面(main が最後)は、いちばん下の行がホームバーに重ならないよう下の safe-area も空ける。保存の帯は自分で空けるので、その画面は下を空けない */
+.screen > main:last-child { padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px)); }
+.screen > main:has(> .savebar) { padding-bottom: 0; }
 .bar-top { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: var(--ground); min-height: 44px; display: flex; align-items: center; gap: 4px; padding-left: max(4px, env(safe-area-inset-left, 0px)); padding-right: max(8px, env(safe-area-inset-right, 0px)); }
 .bar-top h1 { font-size: 17px; font-weight: 700; margin: 0; flex: 1; }
 .iconbtn { position: relative; inline-size: var(--target-size); block-size: var(--target-size); display: grid; place-items: center; border-radius: var(--r-pill); color: var(--fg); flex: none; }

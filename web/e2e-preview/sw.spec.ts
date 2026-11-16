@@ -23,6 +23,24 @@ test('Service Worker が画面の HTML と、それが指す /assets/* を端末
   await expect(page.getByText('ログインを確かめられません')).toBeVisible({ timeout: 20_000 })
   await page.evaluate(() => navigator.serviceWorker.ready)
   await expect
-    .poll(async () => page.evaluate(async () => (await (await caches.open('kakeibo-shell-v1')).keys()).map((r) => new URL(r.url).pathname).sort()))
+    .poll(async () => page.evaluate(async () => (await (await caches.open('kakeibo-shell-v2')).keys()).map((r) => new URL(r.url).pathname).sort()))
     .toEqual(expect.arrayContaining(['/', expect.stringMatching(/^\/assets\/index-.*\.js$/), expect.stringMatching(/^\/assets\/index-.*\.css$/)]))
+})
+
+test('字体は同梱して使う時に端末に置き、画面を取り直しても消さない(別のオリジンへ取りに行かない)', async ({ page }) => {
+  const outside: string[] = []
+  page.on('request', (r) => {
+    if (new URL(r.url()).origin !== new URL(page.url() || 'http://x').origin && !r.url().startsWith('data:')) outside.push(r.url())
+  })
+  await page.goto('/')
+  await expect(page.getByText('ログインを確かめられません')).toBeVisible({ timeout: 20_000 })
+  await page.evaluate(() => navigator.serviceWorker.ready)
+  const fonts = () => page.evaluate(async () => (await (await caches.open('kakeibo-shell-v2')).keys()).map((r) => new URL(r.url).pathname).filter((p) => /\.woff2?$/.test(p)))
+  await expect.poll(async () => (await page.reload(), (await fonts()).length), { timeout: 20_000 }).toBeGreaterThan(0)
+  const before = await fonts()
+  // 取り直し(画面を開くたびに裏で走る)の後も残る
+  await page.reload()
+  await expect(page.getByText('ログインを確かめられません')).toBeVisible({ timeout: 20_000 })
+  await expect.poll(fonts).toEqual(expect.arrayContaining(before))
+  expect(outside.filter((u) => /fonts\.(googleapis|gstatic)\.com/.test(u))).toEqual([])
 })

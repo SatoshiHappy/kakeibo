@@ -20,7 +20,8 @@ export class ApiError extends Error {
   }
 }
 
-export type AuthState = 'ok' | 'login_failed'
+/** login_failed = K3(ログインを確かめられない)・not_registered = K4(利用者の表に無い) */
+export type AuthState = 'ok' | 'login_failed' | 'not_registered'
 
 export type ApiDeps = {
   fetch: (input: string, init: RequestInit) => Promise<Response>
@@ -87,7 +88,12 @@ export function createApi(deps: ApiDeps) {
       else await goToLogin() // K2
       throw new ApiError(401, 'unauthenticated')
     }
-    if (res.status === 403) throw new ApiError(403, 'forbidden') // K4
+    if (res.status === 403) {
+      // K4: 利用者の表に無い人。画面の上に知らせる(どの画面でも同じ文。再読み込みしても変わらない)
+      const body = (await res.json().catch(() => null)) as Record<string, unknown> | null
+      if (body?.error === 'forbidden') setState('not_registered')
+      throw new ApiError(403, 'forbidden')
+    }
     // K5
     const body = (await res.json().catch(() => null)) as Record<string, unknown> | null
     throw new ApiError(res.status, typeof body?.error === 'string' ? body.error : `http_${res.status}`, body)

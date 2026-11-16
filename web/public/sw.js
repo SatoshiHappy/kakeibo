@@ -1,6 +1,6 @@
 // Service Worker。正本: docs/設計/基盤.md §2.3 の 1(画面のファイルを端末に置く)・§7(在庫の通知を受け取る)
 // 本番のビルドだけで登録する(src/main.tsx)。版を変えたら CACHE の名前を上げる(古い置き場は activate で消す)
-const CACHE = 'kakeibo-shell-v1'
+const CACHE = 'kakeibo-shell-v2'
 const SHELL = '/' // 画面(SPA の HTML)は 1 つなので、この鍵に置く
 
 // 入れた時点で画面を 1 回取りに行って置く(初めて開いた直後から、網が無くても開けるように)。
@@ -22,18 +22,27 @@ self.addEventListener('activate', (event) => {
 /** 端末に置いてよい応答: 成功・転送なし・同じオリジン(Access のログイン画面を置かない) */
 const storable = (res) => res.ok && !res.redirected && res.type === 'basic'
 
-/** 画面の HTML を取り直して置き、それが指す /assets/* もそろえる(使わなくなった古い版は消す) */
+const assetUrls = (text, pattern) => [...text.matchAll(pattern)].map((m) => new URL(m[1], self.location.origin).href)
+
+/** 画面の HTML を取り直して置き、それが指す /assets/* もそろえる(使わなくなった古い版は消す)。
+ * CSS が指す字体(/assets/*.woff2 など)は使う時に置くので先には取らないが、今の CSS が指すものは消さない */
 async function refreshShell(request) {
   const res = await fetch(request)
   if (!storable(res)) return res
   const html = await res.clone().text()
-  const assets = new Set([...html.matchAll(/(?:src|href)="(\/assets\/[^"]+)"/g)].map((m) => new URL(m[1], self.location.origin).href))
+  const assets = new Set(assetUrls(html, /(?:src|href)="(\/assets\/[^"]+)"/g))
   const cache = await caches.open(CACHE)
   const held = new Set((await cache.keys()).map((r) => r.url))
   await cache.addAll([...assets].filter((a) => !held.has(a)))
+  const keep = new Set(assets)
+  for (const url of assets) {
+    if (!url.endsWith('.css')) continue
+    const css = await cache.match(url)
+    if (css) for (const u of assetUrls(await css.text(), /url\((\/assets\/[^)]+)\)/g)) keep.add(u)
+  }
   // HTML は assets がそろってから置く(半端な版を出さない)
   await cache.put(SHELL, res.clone())
-  for (const url of held) if (new URL(url).pathname.startsWith('/assets/') && !assets.has(url)) await cache.delete(url)
+  for (const url of held) if (new URL(url).pathname.startsWith('/assets/') && !keep.has(url)) await cache.delete(url)
   return res
 }
 

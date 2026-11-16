@@ -80,6 +80,12 @@ const subscribeAuth = (cb: () => void) => {
 /** 表 K の K3: 前の内容のまま「ログインを確かめられない」と「ログインし直す」 */
 function AuthBar() {
   const state = useSyncExternalStore(subscribeAuth, api.authState)
+  if (state === 'not_registered')
+    return (
+      <div className="authbar" role="alert">
+        <span>このメールはまだ家計簿の利用者に登録されていません。登録した家族に、利用者を足してもらってください。</span>
+      </div>
+    )
   if (state !== 'login_failed') return null
   return (
     <div className="authbar" role="alert">

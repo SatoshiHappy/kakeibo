@@ -18,6 +18,7 @@
 | Web Push | `@block65/webcrypto-web-push`(`worker/notify.ts`) |
 | E2E | Playwright の WebKit(390px・402px。基盤 §6) |
 | Service Worker | 自前の `public/sw.js`(部品を足さない)。本番のビルドだけで登録する |
+| 字体 | `@fontsource/noto-sans-jp`・`@fontsource/inter`(同梱。`src/main.tsx` で読む。外のオリジンから読まない) |
 
 ## API の呼び方
 - 画面から API を呼ぶのは `src/lib/query.ts` の `api.request` と `useApiQuery` だけ。`fetch` を直接書かない(401 の扱い = 基盤の表 K を 1 か所に保つ)。

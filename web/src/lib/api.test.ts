@@ -73,7 +73,18 @@ describe('表 K', () => {
       const { api, deps } = setup([json(403, { error: 'forbidden' })], flag)
       await expect(api.request('/api/x')).rejects.toMatchObject({ status: 403, code: 'forbidden' })
       expect(deps.reload).not.toHaveBeenCalled()
+      expect(api.authState()).toBe('not_registered')
     }
+  })
+  it('K4: 利用者の表に無い印は、次に通った応答(K1)で消える。体が forbidden でない 403(CSRF の文字)では立てない', async () => {
+    const { api } = setup([json(403, { error: 'forbidden' }), json(200, {})])
+    await expect(api.request('/a')).rejects.toMatchObject({ status: 403 })
+    expect(api.authState()).toBe('not_registered')
+    await api.request('/b')
+    expect(api.authState()).toBe('ok')
+    const other = setup([new Response('Forbidden', { status: 403 })])
+    await expect(other.api.request('/a')).rejects.toMatchObject({ status: 403, code: 'forbidden' })
+    expect(other.api.authState()).toBe('ok')
   })
   it('K5: ほかの 4xx・5xx は応答の error、無ければ http_<status>', async () => {
     const { api } = setup([json(422, { error: 'bad_format', check: 'C2' }), new Response('x', { status: 500 })])
