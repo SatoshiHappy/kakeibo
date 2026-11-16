@@ -101,6 +101,12 @@ function AuthBar() {
 export function Screen({ label, top, tabs, children }: { label: string; top: ReactNode; tabs: boolean; children: ReactNode }) {
   return (
     <section className="screen" aria-label={label}>
+      {/* アプリの題(下のタブの画面だけ。固定の帯を重ねないよう、上の帯と違ってスクロールで流れる) */}
+      {tabs && (
+        <p className="apphead" aria-hidden="true">
+          家計簿
+        </p>
+      )}
       {top}
       <AuthBar />
       <main>{children}</main>

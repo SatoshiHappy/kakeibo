@@ -61,3 +61,14 @@ test('下のタブが無い画面は下の safe-area を空け、保存の帯の
   await expect(page.locator('.savebar')).toBeVisible()
   expect(await page.locator('.screen > main').evaluate((m) => getComputedStyle(m).paddingBottom)).toBe('0px')
 })
+
+test('下のタブの画面はいちばん上にアプリの題「家計簿」を出し、メニューから開く画面には出さない', async ({ page }) => {
+  for (const p of ['/', '/capture', '/list', '/stock']) {
+    await page.goto(p)
+    await expect(page.locator('.apphead')).toHaveText('家計簿')
+    const [head, bar] = await Promise.all([page.locator('.apphead').boundingBox(), page.locator('.bar-top').first().boundingBox()])
+    expect(head!.y + head!.height).toBeLessThanOrEqual(bar!.y + 1)
+  }
+  await page.goto('/menu')
+  await expect(page.locator('.apphead')).toHaveCount(0)
+})
