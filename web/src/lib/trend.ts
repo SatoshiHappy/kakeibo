@@ -34,3 +34,14 @@ export function totalsByKind(cats: TotalCategory[]) {
     return { ...g, total: rows.reduce((a, c) => a + c.amount, 0), rows }
   })
 }
+
+/** 縦軸の目盛り: 0 と、最大を超える切りのよい額まで 3〜4 本(1 万・2 万・5 万…の刻み) */
+export function axisTicks(max: number): number[] {
+  const steps = [1000, 2000, 5000, 10_000, 20_000, 50_000, 100_000, 200_000, 500_000, 1_000_000]
+  const step = steps.find((s) => max / s <= 3) ?? steps.at(-1)!
+  const n = Math.max(1, Math.ceil(max / step))
+  return Array.from({ length: n + 1 }, (_, i) => i * step)
+}
+
+/** 目盛りの字: 1 万円より上は「5万」、下は「5千」 */
+export const manYen = (v: number) => (v === 0 ? '0' : v % 10_000 === 0 ? `${v / 10_000}万` : `${v / 1000}千`)

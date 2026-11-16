@@ -34,6 +34,8 @@ export function Prefs() {
 
   // 入力欄を離れたら保存。押した時点で計を変え、失敗したら戻して知らせる(基盤 §2.3)
   const save = useMutation({
+    // 続けて直しても、口へは直した順に 1 つずつ送る(前の額が後から書かれないように)
+    scope: { id: 'budget' },
     mutationFn: ({ id, amount }: { id: number; amount: number | null }) =>
       api.request('/api/budgets', { method: 'PUT', json: { categoryId: id, fromMonth: month, amount } }),
     onMutate: async ({ id, amount }) => {

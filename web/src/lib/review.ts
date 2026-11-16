@@ -15,7 +15,7 @@ export type Action =
   | { kind: 'reject'; pairs: { chargeId: number; expenseId: number }[]; label: string }
   | { kind: 'none'; chargeId: number; label: string }
   | { kind: 'ackNoStatement'; expenseId: number; label: string }
-  | { kind: 'ackDiff'; expenseId: number; label: string }
+  | { kind: 'ackDiff'; expenseId: number; diff: number; label: string }
   | { kind: 'edit'; expenseId: number; label: string }
   | { kind: 'search'; by: { charge: number } | { expense: number }; label: string }
 
@@ -104,7 +104,7 @@ export function cardOf(item: ReviewItem, methods: { code: string; label: string 
         records: [...charges.map((c) => chargeRecord('明細', c, { diffAmount: true })), expenseRecord('支出', expense, { diffAmount: true })],
         why: 'ポイントで一部を払ったときは、レシートの額のままで大丈夫です。',
         actions: [
-          { kind: 'ackDiff', expenseId: expense.id, label: `${yen(expense.amount)} のまま確認済み` },
+          { kind: 'ackDiff', expenseId: expense.id, diff, label: `${yen(expense.amount)} のまま確認済み` },
           { kind: 'edit', expenseId: expense.id, label: 'レシートを直す' },
           ...charges.map(
             (c): Action => ({ kind: 'reject', pairs: [{ chargeId: c.id, expenseId: expense.id }], label: charges.length > 1 ? `${shortDate(c.usedOn)} の明細は別の買い物` : '別の買い物' }),

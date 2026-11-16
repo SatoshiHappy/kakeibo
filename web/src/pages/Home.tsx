@@ -139,7 +139,7 @@ function CategoryRows({ rows, month }: { rows: HomeRows; month: string }) {
         )}
       </ul>
       {rows.fixed && (
-        <Link className="fixedline" to={`/list?month=${month}`}>
+        <Link className="fixedline" to={`/list?month=${month}&filter=fixed`}>
           <span>
             固定費 <span className="faint">{rows.fixed.names.join('・')}</span>
           </span>

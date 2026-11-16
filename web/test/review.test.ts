@@ -129,6 +129,15 @@ describe('表 A-3(差あり)', () => {
     await importCsv([{ date: day(10), amount: 1000 }])
     expect(await list()).toEqual([])
   })
+  it('このままは画面で見た差を送り、今の差と違えば 409 changed で覚えない(見ていない差を確認済みにしない)', async () => {
+    const { p } = await linkedWithDiff()
+    const res = await send('/api/review/ack-diff', 'POST', { expenseId: p, diff: 5 })
+    expect(res.status).toBe(409)
+    expect(await res.json()).toEqual({ error: 'changed' })
+    expect(await list()).toEqual([expect.objectContaining({ type: 'diff', diff: 1 })])
+    expect((await send('/api/review/ack-diff', 'POST', { expenseId: p, diff: 1 })).status).toBe(200)
+    expect(await list()).toEqual([])
+  })
   it('A-3 の 3 行: 差 1 は L4。A-3 の 2 行: このままにすると出ない。差が変わるとまた出る', async () => {
     const { p } = await linkedWithDiff()
     expect(await list()).toEqual([expect.objectContaining({ type: 'diff', diff: 1 })])

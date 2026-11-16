@@ -346,24 +346,28 @@ review.post('/ack-no-statement', async (c) => {
 
 // 「差あり」を「このまま」にする: 今の差を覚える。差が変わればまた出る(表 A-3)
 review.post('/ack-diff', async (c) => {
-  const parsed = z.object({ expenseId: z.number().int() }).safeParse(await c.req.json().catch(() => undefined))
+  // diff: 画面で見た差(明細 − 支出)。渡したら、今の差が同じときだけ覚える(見ていない差を確認済みにしない)
+  const parsed = z.object({ expenseId: z.number().int(), diff: z.number().int().optional() }).safeParse(await c.req.json().catch(() => undefined))
   if (!parsed.success) return c.json({ error: 'invalid_body' }, 400)
   const db = c.env.DB
+  const diffSql = `(SELECT SUM(amount) FROM card_charges WHERE expense_id = e.id) - (SELECT SUM(amount) FROM items WHERE expense_id = e.id)`
   const row = await db
-    .prepare(
-      `SELECT (SELECT SUM(amount) FROM card_charges WHERE expense_id = e.id) - (SELECT SUM(amount) FROM items WHERE expense_id = e.id) AS diff
-       FROM expenses e WHERE e.id = ? AND e.origin = 'person'`,
-    )
+    .prepare(`SELECT ${diffSql} AS diff FROM expenses e WHERE e.id = ? AND e.origin = 'person'`)
     .bind(parsed.data.expenseId)
     .first<{ diff: number | null }>()
   if (!row) return c.json({ error: 'not_found' }, 404)
   if (row.diff === null || row.diff === 0) return c.json({ error: 'no_diff' }, 409)
-  await db
+  const seen = parsed.data.diff ?? row.diff
+  if (seen !== row.diff) return c.json({ error: 'changed' }, 409)
+  // 読んだ後に差が変わっていたら書かない(書くときに差をもう一度確かめる)
+  const res = await db
     .prepare(
-      `INSERT INTO diff_acks (expense_id, accepted_diff, acked_by, acked_at) VALUES (?, ?, ?, ?)
+      `INSERT INTO diff_acks (expense_id, accepted_diff, acked_by, acked_at)
+       SELECT e.id, ${diffSql}, ?, ? FROM expenses e WHERE e.id = ? AND ${diffSql} = ?
        ON CONFLICT (expense_id) DO UPDATE SET accepted_diff = excluded.accepted_diff, acked_by = excluded.acked_by, acked_at = excluded.acked_at`,
     )
-    .bind(parsed.data.expenseId, row.diff, c.get('user').id, nowIso())
+    .bind(c.get('user').id, nowIso(), parsed.data.expenseId, seen)
     .run()
+  if (res.meta.changes === 0) return c.json({ error: 'changed' }, 409)
   return c.json({ ok: true })
 })

@@ -17,7 +17,7 @@ export function Menu() {
           <span className="mi"><Icon name="check" />確かめる(カード明細とレシート)</span>
           <span className="sub">›</span>
         </Link>
-        <Link className="lrow" to="/trend">
+        <Link className="lrow" to="/trend?from=menu">
           <span className="mi"><Icon name="chart" />月ごとの推移</span>
           <span className="sub">›</span>
         </Link>

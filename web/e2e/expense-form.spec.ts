@@ -27,7 +27,7 @@ test('下書き(読めなかった)を手で入れて保存 → 支出を直す 
   try {
     // V3: 読めなかった下書き
     await page.goto(`/receipts/${receiptId}`)
-    await expect(page.getByText('読めませんでした。手で入力するか、読み直してください。')).toBeVisible()
+    await expect(page.getByText('AI を呼べませんでした。読み直すか、手で入力してください。')).toBeVisible() // 手元は AI の鍵が無い(表 R の R4 の「その他」)
     await expect(page.getByRole('button', { name: '読み直す' })).toBeVisible()
 
     // 誤りは並べて知らせる

@@ -53,12 +53,12 @@ test('L1・L2・L4 のカード: 押したボタンどおりの要求を送り�
   // 「レシートを直す」は確かめて保存へ移るだけ(要求は送らない)
   const l4b = page.getByRole('region', { name: '金額が ¥20 違います' })
   await l4b.getByRole('button', { name: 'レシートを直す' }).click()
-  await expect(page).toHaveURL(/\/expenses\/41$/)
+  await expect(page).toHaveURL(/\/expenses\/41\?from=review$/)
 
   expect(sent).toEqual([
     { path: '/api/review/link', body: { chargeId: 1, expenseId: 12 } },
     { path: '/api/review/reject', body: { chargeId: 2, expenseId: 21 } },
-    { path: '/api/review/ack-diff', body: { expenseId: 31 } },
+    { path: '/api/review/ack-diff', body: { expenseId: 31, diff: -100 } },
   ])
 })
 

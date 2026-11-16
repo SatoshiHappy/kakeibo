@@ -59,7 +59,7 @@ export function RecurringPage() {
       )}
       <p className="note">登録すると、毎月その日の朝に支出を自動で作ります(一覧に「自動」の印)。額が変わった月は、作られた支出を直してください。カードで払うものは明細から入るので、登録は口座振替・現金などのものに使います。</p>
       {!data ? (
-        <p className="note">読み込み中…</p>
+        <p className="note">{q.isError ? '読み込めませんでした。通信のある所で開き直してください。' : '読み込み中…'}</p>
       ) : data.items.length === 0 ? (
         <p className="note">まだありません。「+ 足す」から家賃などを登録してください。</p>
       ) : (

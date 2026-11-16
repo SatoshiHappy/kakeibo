@@ -45,6 +45,12 @@ test('月の支出を日ごとに並べ、絞り込みと印(表 W)が出て、�
     await expect(cash).toBeVisible()
     await expect(card).toHaveCount(0)
 
+    // ホームの「固定費」の行から来たとき(?filter=fixed)は固定費で絞って始める
+    await page.goto(`/list?month=${MONTH}&filter=fixed`)
+    await expect(page.getByRole('button', { name: /^固定費/ })).toHaveAttribute('aria-pressed', 'true')
+    await expect(cash).toHaveCount(0)
+    await page.goto(`/list?month=${MONTH}`)
+
     await cash.click()
     await expect(page).toHaveURL(new RegExp(`/expenses/${ids[1]}$`))
     await expect(page.getByRole('heading', { name: '支出を直す' })).toBeVisible()

@@ -195,7 +195,7 @@ ul.plain.drafts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)
 .adjrow { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr) minmax(0, 1.4fr) auto; gap: 6px; align-items: end; }
 .signed { display: flex; gap: 4px; }
 .signed input { flex: 1; min-width: 0; }
-.signbtn { flex: none; inline-size: var(--target-size); min-height: var(--target-size); border: 1px solid var(--border); border-radius: var(--r-sm); background: var(--bg); color: var(--fg); font-size: 18px; }
+.signbtn { flex: none; display: grid; place-items: center; padding: 0; inline-size: var(--target-size); min-height: var(--target-size); border: 1px solid var(--input); border-radius: var(--r-sm); background: var(--bg); color: var(--fg); font-size: 18px; }
 .signbtn[aria-pressed="true"] { background: var(--fg); color: var(--bg); border-color: var(--fg); }
 .ferrs { margin: 0; padding: 8px 12px 8px 28px; border-radius: var(--r); background: var(--ng-bg); color: var(--danger); font-size: 13px; }
 .dangerbtn { color: var(--danger); }
@@ -212,6 +212,7 @@ dialog.viewer::backdrop { background: transparent; }
 select { appearance: none; padding-right: 28px; background-image: linear-gradient(45deg, transparent 50%, var(--muted) 50%), linear-gradient(135deg, var(--muted) 50%, transparent 50%); background-position: calc(100% - 16px) 50%, calc(100% - 11px) 50%; background-size: 5px 5px; background-repeat: no-repeat; }
 
 /* 一覧(モック 14 版の list) */
+.mhead { display: flex; flex-direction: column; line-height: 1.15; }
 .hsum { display: flex; flex-direction: column; align-items: flex-end; line-height: 1.15; }
 .hsum b { font-size: 15px; }
 .hsum .faint { font-size: 11px; }
@@ -297,6 +298,11 @@ ul.plain.sgrid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 
 .trendchart { padding: 0 4px; }
 ul.plain.legend { display: flex; flex-wrap: wrap; gap: 4px 12px; padding: 4px 12px 12px; font-size: 12px; color: var(--muted); }
 .legend li { display: inline-flex; align-items: center; gap: 4px; }
+.legend .line { inline-size: 12px; block-size: 2px; border-radius: 1px; }
+/* 推移の帯: 塗りは面だけ(上の縁の線を塗ると端と端を結んだ三角になる)。帯の間は地の色の 2px の隙間 */
+.trendchart .band .recharts-area-area { fill: var(--band); fill-opacity: 1; stroke: none; }
+.trendchart .band .recharts-area-curve { fill: none; stroke: var(--bg); stroke-width: 2; }
+.trendchart .rlab { font-size: 11px; font-weight: 700; fill: var(--bg); }
 .scrollx { overflow-x: auto; }
 .mtable { width: 100%; border-collapse: collapse; font-size: 13px; }
 .mtable th, .mtable td { padding: 0 12px; border-top: 1px solid var(--border); text-align: left; white-space: nowrap; }

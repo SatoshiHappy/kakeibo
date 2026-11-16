@@ -178,7 +178,15 @@ function errorText(e: unknown): string {
     case 'future_date':
       return '日付が今日より後です。買った日を入れてください。'
     case 'receipt_already_saved':
-      return 'このレシートはもう支出に保存されています。'
+    case 'saved_receipt':
+      return 'このレシートはもう支出に保存されています(ほかの端末で保存したなど)。開き直してください。'
+    case 'already_read':
+      return 'このレシートはもう読めています。開き直してください。'
+    case 'conflict':
+      return 'ほかの端末で同時に読み直しています。少し待って開き直してください。'
+    case 'images_not_stored':
+    case 'image_missing':
+      return '写真が届いていないので読み直せません。手で入力してください。'
     case 'not_found':
     case 'receipt_not_found':
       return '見つかりません。もう消された支出か下書きです。'

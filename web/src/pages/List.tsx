@@ -20,8 +20,9 @@ const MARK: Record<string, { icon: IconName; cls: string } | undefined> = {
   W3: { icon: 'ok', cls: 'st-ok' },
   W4: { icon: 'alert', cls: 'st-warn' },
   W5: { icon: 'doc', cls: 'st-wait' },
-  W6: { icon: 'ok', cls: 'st-wait' },
-  W7: { icon: 'ok', cls: 'st-wait' },
+  // 確認済み(W6・W7)は明細と一致(W3)と形を変える(色だけで分けない)
+  W6: { icon: 'check', cls: 'st-wait' },
+  W7: { icon: 'check', cls: 'st-wait' },
 }
 
 export function List() {
@@ -31,7 +32,8 @@ export function List() {
   const month = isMonth(raw) && raw <= thisMonth ? raw : thisMonth
   const go = (m: string) => setParams(m === thisMonth ? {} : { month: m })
   const q = useApiQuery<ListResponse>(`/api/expenses?month=${month}`)
-  const [filter, setFilter] = useState<Filter>('all')
+  // ホームの「固定費」の行から来たら固定費で絞って始める(?filter=fixed。ほかの値は「すべて」)
+  const [filter, setFilter] = useState<Filter>(() => (params.get('filter') === 'fixed' ? 'fixed' : 'all'))
   const total = q.data?.expenses.reduce((a, e) => a + e.amount, 0) ?? null
 
   const top = (
@@ -40,7 +42,10 @@ export function List() {
       <button className="iconbtn" type="button" aria-label="前の月" onClick={() => go(shiftMonth(month, -1))}>
         <Icon name="back" />
       </button>
-      <h1>{Number(month.slice(5, 7))}月の支出</h1>
+      <h1 className="mhead">
+        <span className="sub">{Number(month.slice(0, 4))}年</span>
+        {Number(month.slice(5, 7))}月の支出
+      </h1>
       {total !== null && (
         <span className="hsum">
           <b className="num">{yen(total)}</b>
@@ -92,6 +97,7 @@ function ListBody({ data, filter, onFilter }: { data: ListResponse; filter: Filt
         <span className="st-wait"><Icon name="clock" size={13} />明細待ち</span>
         <span className="st-ok"><Icon name="ok" size={13} />明細と一致</span>
         <span className="st-warn"><Icon name="alert" size={13} />差あり</span>
+        <span className="st-wait"><Icon name="check" size={13} />確認済み</span>
       </div>
       {shown.length === 0 ? (
         <p className="note">{data.expenses.length === 0 ? 'この月の支出はまだありません。' : '当たる支出はありません。'}</p>

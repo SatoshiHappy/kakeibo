@@ -183,7 +183,12 @@ master.get('/summary/totals', async (c) => {
   const year = c.req.query('year')
   if (year !== undefined && !/^\d{4}$/.test(year)) return c.json({ error: 'invalid_year' }, 400)
   const range = year === undefined ? null : ({ start: `${year}-01-01`, months: 12 } as const)
-  return c.json({ year: year === undefined ? null : Number(year), categories: await categoryAmounts(c.env.DB, range, null) })
+  // firstYear: 記録のいちばん古い年(画面が去年より前の年を選べるように。記録が無ければ null)
+  const [categories, first] = await Promise.all([
+    categoryAmounts(c.env.DB, range, null),
+    c.env.DB.prepare('SELECT MIN(spent_on) AS d FROM expenses').first<{ d: string | null }>(),
+  ])
+  return c.json({ year: year === undefined ? null : Number(year), firstYear: first?.d ? Number(first.d.slice(0, 4)) : null, categories })
 })
 
 // 月ごとの費目別の合計(積み上げ折れ線。月をまたいで累計しない。§4.1)。種類で分けるのは画面(表 G)

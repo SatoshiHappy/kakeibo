@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { monthBreakdown, monthRows, periodMonths, totalsByKind } from './trend'
+import { axisTicks, manYen, monthBreakdown, monthRows, periodMonths, totalsByKind } from './trend'
 
 const p = (month: string, categoryId: number, kind: string, amount: number) => ({ month, categoryId, kind, amount })
 
@@ -41,5 +41,21 @@ describe('費目ごとの総計', () => {
       ['毎月変わる', 150, ['食費', '医療']],
       ['固定費', 9000, ['家賃']],
     ])
+  })
+})
+
+describe('推移の縦軸の目盛り', () => {
+  it('最大を超える切りのよい額まで、1・2・5 の刻みで 4 本前後(0 も入れる)', () => {
+    expect(axisTicks(0)).toEqual([0, 1000])
+    expect(axisTicks(101_530)).toEqual([0, 50_000, 100_000, 150_000])
+    expect(axisTicks(100_000)).toEqual([0, 50_000, 100_000])
+    expect(axisTicks(30_000)).toEqual([0, 10_000, 20_000, 30_000])
+    expect(axisTicks(30_001)).toEqual([0, 20_000, 40_000])
+  })
+  it('字は 1 万円の倍なら「5万」、ほかは「5千」', () => {
+    expect(manYen(0)).toBe('0')
+    expect(manYen(50_000)).toBe('5万')
+    expect(manYen(150_000)).toBe('15万')
+    expect(manYen(2000)).toBe('2千')
   })
 })

@@ -14,8 +14,12 @@ export function Totals() {
     { key: 'all', label: '通算', note: '記録のすべて' },
   ]
   const [picked, setPicked] = useState(choices[0]!.key)
-  const q = useApiQuery<{ categories: TotalCategory[] }>(picked === 'all' ? '/api/summary/totals' : `/api/summary/totals?year=${picked}`)
-  const choice = choices.find((c) => c.key === picked)!
+  const q = useApiQuery<{ firstYear: number | null; categories: TotalCategory[] }>(picked === 'all' ? '/api/summary/totals' : `/api/summary/totals?year=${picked}`)
+  // 去年より前の記録があれば、その年も選べる(医療費控除の目安を前の年でも見る)
+  const [older, setOlder] = useState<number | null>(null)
+  if (older === null && q.data?.firstYear != null && q.data.firstYear < thisYear - 1) setOlder(q.data.firstYear)
+  const olderYears = older === null ? [] : Array.from({ length: thisYear - 1 - older }, (_, i) => thisYear - 2 - i)
+  const choice = choices.find((c) => c.key === picked) ?? { key: picked, label: `${picked}年`, note: `${picked}年 1/1〜12/31` }
 
   return (
     <Screen label="費目ごとの総計" tabs={false} top={<TopBar title="費目ごとの総計" left={{ kind: 'back', to: '/menu', label: 'メニューに戻る' }} />}>
@@ -26,6 +30,19 @@ export function Totals() {
           </button>
         ))}
       </div>
+      {olderYears.length > 0 && (
+        <label className="fld">
+          <span>前の年</span>
+          <select value={olderYears.includes(Number(picked)) ? picked : ''} onChange={(e) => e.currentTarget.value && setPicked(e.currentTarget.value)}>
+            <option value="">選ぶ</option>
+            {olderYears.map((y) => (
+              <option key={y} value={String(y)}>
+                {y}年
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
       <p className="note">
         {choice.note}。
         {picked !== 'all' && '医療費控除の目安: 医療の年の合計が 10 万円(所得が 200 万円未満なら所得の 5%)を超えるか。'}

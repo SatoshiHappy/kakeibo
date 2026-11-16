@@ -23,6 +23,7 @@ function errorText(e: unknown) {
   if (!(e instanceof ApiError) || e.status === null) return '通信できませんでした。通信のある所でもう一度押してください。'
   if (e.code === 'charge_already_linked') return 'その明細はもう別の支出に結ばれています。先にそちらで外してください。'
   if (e.code === 'not_found' || e.code === 'not_free') return 'もう片づいた項目です。'
+  if (e.code === 'changed') return 'ほかの人が支出か明細を直したので、差が変わりました。読み直した額で確かめてください。'
   return '保存できませんでした。もう一度押してください。'
 }
 
@@ -39,7 +40,7 @@ async function run(a: Action) {
     case 'ackNoStatement':
       return api.request(`${PATH}/ack-no-statement`, { method: 'POST', json: { expenseId: a.expenseId } })
     case 'ackDiff':
-      return api.request(`${PATH}/ack-diff`, { method: 'POST', json: { expenseId: a.expenseId } })
+      return api.request(`${PATH}/ack-diff`, { method: 'POST', json: { expenseId: a.expenseId, diff: a.diff } })
     default:
       throw new Error(`not_an_api_action:${a.kind}`)
   }
@@ -150,9 +151,15 @@ function ReviewCard({ card, onAction }: { card: Card; onAction: (a: Action) => v
           {card.records.map((r, i) => (
             <tr key={i} className={r.faint ? 'faint' : undefined}>
               <th scope="row">{r.label}</th>
-              <td className={r.diffDate ? 'diff' : undefined}>{r.date}</td>
+              <td className={r.diffDate ? 'diff' : undefined}>
+                {r.date}
+                {r.diffDate && <span className="visually-hidden">(違う)</span>}
+              </td>
               <td>{r.name}</td>
-              <td className={`r num${r.diffAmount ? ' diff' : ''}`}>{r.amount}</td>
+              <td className={`r num${r.diffAmount ? ' diff' : ''}`}>
+                {r.amount}
+                {r.diffAmount && <span className="visually-hidden">(違う)</span>}
+              </td>
             </tr>
           ))}
         </tbody>

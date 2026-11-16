@@ -173,6 +173,10 @@ describe('集計と予算', () => {
     const all = await (await get('/api/summary/totals')).json<T>()
     expect(all.year).toBeNull()
     expect(all.categories.find((c) => c.categoryId === 14)!.amount).toBe(7100)
+    // 記録のいちばん古い年(画面が去年より前の年を選ぶため)
+    const min = (await env.DB.prepare('SELECT MIN(spent_on) AS d FROM expenses').first<{ d: string }>())!.d
+    expect((await (await get('/api/summary/totals?year=2024')).json<{ firstYear: number }>()).firstYear).toBe(Number(min.slice(0, 4)))
+    expect(Number(min.slice(0, 4))).toBeLessThanOrEqual(2023)
     expect((await get('/api/summary/totals?year=26')).status).toBe(400)
   })
   it('やめた費目は額が 0 でないときだけ出る(総計・月の集計)', async () => {

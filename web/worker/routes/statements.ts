@@ -57,6 +57,12 @@ statements.post('/', async (c) => {
 
   const db = c.env.DB
   const user = c.get('user')
+  // 手数料の費目の受け皿「未分類」(system_categories)が無ければ書かずに止める(データと照合 §1.3。初期データで入り、消えない作り)
+  const uncategorized = await db.prepare("SELECT category_id FROM system_categories WHERE role = 'uncategorized'").first()
+  if (!uncategorized) {
+    console.error('statement import stopped: uncategorized category missing')
+    return c.json({ error: 'internal', check: 'uncategorized_missing' }, 500)
+  }
   const { results: existing } = await db
     .prepare('SELECT used_on, merchant, card_user, amount_cell, ordinal, payment_type, fee FROM card_charges WHERE billing_month = ?')
     .bind(billingMonth)

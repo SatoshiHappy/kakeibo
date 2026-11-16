@@ -1,11 +1,12 @@
 // 月ごとの推移(見本はモック 14 版の trend)。正本: データと照合 §4.1・表 G
-import { useState } from 'react'
-import { Bar, BarChart, ReferenceDot, Rectangle, ResponsiveContainer, Tooltip, XAxis, YAxis, type BarShapeProps, type TooltipContentProps, type TooltipValueType } from 'recharts'
+import { useState, type CSSProperties } from 'react'
+import { useSearchParams } from 'react-router'
+import { Area, CartesianGrid, ComposedChart, Line, ReferenceDot, ResponsiveContainer, Tooltip, XAxis, YAxis, type TooltipContentProps, type TooltipValueType } from 'recharts'
 import { Screen, TopBar } from '../components/Shell'
 import { trend, type CategoryAmount, type TrendPoint } from '../lib/categories'
 import { currentMonth, monthLabel, yen } from '../lib/format'
 import { useApiQuery } from '../lib/query'
-import { monthBreakdown, monthRows, periodMonths, type NamedCategory } from '../lib/trend'
+import { axisTicks, manYen, monthBreakdown, monthRows, periodMonths, type NamedCategory } from '../lib/trend'
 
 const PERIODS = [6, 12, 24] as const
 type TrendResponse = { points: TrendPoint[]; lastMonth: CategoryAmount[]; categories: NamedCategory[] }
@@ -17,9 +18,12 @@ export function Trend() {
   const months = periodMonths(to, n)
   const q = useApiQuery<TrendResponse>(`/api/summary/trend?from=${months[0]}&to=${to}`)
   const [picked, setPicked] = useState(to)
+  // メニューから開いたらメニューへ、ホームのグラフから開いたらホームへ戻る
+  const [search] = useSearchParams()
+  const back = search.get('from') === 'menu' ? ({ kind: 'back', to: '/menu', label: 'メニューに戻る' } as const) : ({ kind: 'back', to: '/', label: 'ホームに戻る' } as const)
 
   return (
-    <Screen label="推移" tabs={false} top={<TopBar title="月ごとの推移" left={{ kind: 'back', to: '/', label: 'ホームに戻る' }} />}>
+    <Screen label="推移" tabs={false} top={<TopBar title="月ごとの推移" left={back} />}>
       <div className="seg" role="group" aria-label="期間">
         {PERIODS.map((p) => (
           <button key={p} type="button" aria-pressed={n === p} onClick={() => setN(p)}>
@@ -39,10 +43,9 @@ export function Trend() {
 function TrendBody({ data, months, picked, onPick }: { data: TrendResponse; months: string[]; picked: string; onPick: (m: string) => void }) {
   const t = trend(months, data.points, data.lastMonth)
   const rows = monthRows(months, data.points)
-  const chartData = months.map((m, i) => ({ month: short(m), ...Object.fromEntries(t.bands.map((b) => [b.key, b.values[i]!])), extra: t.extra[i]! }))
   const stackTop = (i: number) => t.bands.reduce((a, b) => a + b.values[i]!, 0)
-  // 月ごとに額のある最も上の帯(角を丸める)
-  const topBand = months.map((_, m) => t.bands.findLastIndex((b) => b.values[m]! > 0))
+  const chartData = months.map((m, i) => ({ month: short(m), ...Object.fromEntries(t.bands.map((b) => [b.key, b.values[i]!])), total: stackTop(i), extra: t.extra[i]! }))
+  const ticks = axisTicks(t.maxStack)
   const breakdown = monthBreakdown(picked, data.points, data.categories)
   const isCurrent = picked === currentMonth()
   const top = `${short(months[0]!)}〜${monthLabel(months.at(-1)!)}`
@@ -53,22 +56,22 @@ function TrendBody({ data, months, picked, onPick }: { data: TrendResponse; mont
         <h2>
           <span>毎月変わる支出 · {monthLabel(months[0]!)}〜{short(months.at(-1)!)}</span>
         </h2>
-        <p className="note pad">固定費と臨時の費目は積まない(臨時は紫の印)</p>
+        <p className="note pad">固定費と臨時の費目は積まない(臨時は紫の札に額)。線は月の合計</p>
         <div className="trendchart" role="img" aria-label={`${top}の毎月変わる支出の積み上げ。値は下の表`}>
           <ResponsiveContainer width="100%" height={200}>
-            <BarChart data={chartData} margin={{ top: 12, right: 8, bottom: 0, left: 0 }} barCategoryGap="25%">
-              <XAxis dataKey="month" tickLine={false} axisLine={false} tick={{ fontSize: 11, style: { fill: 'var(--muted)' } }} interval="preserveStartEnd" />
-              <YAxis hide domain={[0, Math.max(t.maxStack, 1)]} />
-              <Tooltip cursor={{ style: { fill: 'var(--hover)' } }} content={(p) => <TrendTip p={p} bands={t.bands.map((b) => b.key)} names={new Map(t.bands.map((b) => [b.key, b.name]))} />} />
-              {t.bands.map((b, i) => (
-                <Bar key={b.key} dataKey={b.key} name={b.name} stackId="s" isAnimationActive={false} shape={bandShape(b.color, (m) => topBand[m] === i)} />
+            <ComposedChart data={chartData} margin={{ top: 28, right: 8, bottom: 0, left: 0 }}>
+              <CartesianGrid vertical={false} style={{ stroke: 'var(--border)' }} />
+              <XAxis dataKey="month" tickLine={false} axisLine={false} padding={{ left: 28, right: 28 }} tick={{ fontSize: 11, style: { fill: 'var(--muted)' } }} interval="preserveStartEnd" />
+              <YAxis width={34} tickLine={false} axisLine={false} ticks={ticks} domain={[0, ticks.at(-1)!]} tickFormatter={manYen} tick={{ fontSize: 11, style: { fill: 'var(--muted)' } }} />
+              <Tooltip cursor={{ style: { stroke: 'var(--faint)' } }} content={(p) => <TrendTip p={p} bands={t.bands.map((b) => b.key)} names={new Map(t.bands.map((b) => [b.key, b.name]))} />} />
+              {/* 費目の帯を積む(月をまたいで累計しない)。帯の間は地の色の 2px の隙間(dataviz の印の決まり) */}
+              {t.bands.map((b) => (
+                <Area key={b.key} dataKey={b.key} name={b.name} stackId="s" type="linear" isAnimationActive={false} activeDot={false} className="band" style={{ '--band': `var(${b.color})` } as CSSProperties} />
               ))}
-              {t.extra.map((x, i) =>
-                x !== 0 ? (
-                  <ReferenceDot key={i} x={chartData[i]!.month} y={stackTop(i)} r={4} ifOverflow="extendDomain" shape={(d) => <circle cx={d.cx} cy={Number(d.cy) - 8} r={4} style={{ fill: 'var(--c9)', stroke: 'var(--bg)', strokeWidth: 2 }} />} />
-                ) : null,
-              )}
-            </BarChart>
+              <Line dataKey="total" name="合計" type="linear" isAnimationActive={false} dot={false} activeDot={{ r: 4, style: { fill: 'var(--fg)', stroke: 'var(--bg)', strokeWidth: 2 } }} style={{ fill: 'none', stroke: 'var(--fg)', strokeWidth: 2 }} />
+              {/* 臨時は積まず、その月に印と額の札を付ける(要求「集計」。縦軸は臨時を除いた最大に合わせる) */}
+              {t.extra.map((x, i) => (x !== 0 ? <ReferenceDot key={i} x={chartData[i]!.month} y={stackTop(i)} ifOverflow="visible" shape={(d) => <ExtraMark cx={Number(d.cx)} cy={Number(d.cy)} amount={x} />} /> : null))}
+            </ComposedChart>
           </ResponsiveContainer>
         </div>
         <ul className="plain legend">
@@ -78,6 +81,10 @@ function TrendBody({ data, months, picked, onPick }: { data: TrendResponse; mont
               {b.name}
             </li>
           ))}
+          <li>
+            <span className="line" style={{ background: 'var(--fg)' }} />
+            合計
+          </li>
           <li>
             <span className="dot" style={{ background: 'var(--c9)' }} />
             臨時(積まない)
@@ -138,10 +145,17 @@ function TrendBody({ data, months, picked, onPick }: { data: TrendResponse; mont
   )
 }
 
-/** 帯の塊: 色はトークン、塊の間は地の色の 2px の隙間、いちばん上の帯は角を丸める(dataviz の印の決まり) */
-function bandShape(color: string, isTop: (month: number) => boolean) {
-  return ({ key: _key, ...props }: BarShapeProps & { key?: unknown }) => (
-    <Rectangle {...props} fill={undefined} stroke={undefined} radius={isTop(props.index) ? [4, 4, 0, 0] : 0} style={{ fill: `var(${color})`, stroke: 'var(--bg)', strokeWidth: 2 }} />
+/** 臨時の印: 合計の上から点線を伸ばし、上に「臨時 ¥98千」の札 */
+function ExtraMark({ cx, cy, amount }: { cx: number; cy: number; amount: number }) {
+  const label = `臨時 ${Math.abs(amount) >= 1000 ? `${amount < 0 ? '−' : ''}¥${Math.round(Math.abs(amount) / 1000)}千` : yen(amount)}`
+  return (
+    <g aria-hidden="true">
+      <line x1={cx} x2={cx} y1={cy - 4} y2={22} style={{ stroke: 'var(--c9)', strokeWidth: 1.5, strokeDasharray: '2 2' }} />
+      <rect x={cx - 36} y={4} width={72} height={18} rx={9} style={{ fill: 'var(--c9)' }} />
+      <text x={cx} y={17} textAnchor="middle" className="rlab">
+        {label}
+      </text>
+    </g>
   )
 }
 
