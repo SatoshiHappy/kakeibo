@@ -31,15 +31,21 @@ async function body<T extends z.ZodType>(c: Context<AppEnv>, schema: T) {
   return schema.safeParse(json)
 }
 
-/** 結果の優先順(§4.12)の 3 つ目以降: やめた費目 → 知らない支払い方法 → 今日より前の日 */
-async function refusal(db: D1Database, b: { categoryId: number; paymentMethod: string; nextOn: string }) {
-  const cat = await db.prepare('SELECT retired_at FROM categories WHERE id = ?').bind(b.categoryId).first<{ retired_at: string | null }>()
-  if (!cat || cat.retired_at !== null) return 'invalid_category'
-  const pm = await db.prepare('SELECT 1 AS ok FROM payment_methods WHERE code = ?').bind(b.paymentMethod).first()
-  if (!pm) return 'invalid_payment_method'
-  if (b.nextOn < jstDate()) return 'past_date'
+/** 結果の優先順(§4.12)の 3 つ目以降: やめた費目 → 知らない支払い方法 → 今日より前の日(直すときは次に作る日を変えたときだけ) */
+async function refusal(db: D1Database, b: { categoryId: number; paymentMethod: string; nextOn: string }, currentNextOn: string | null) {
+  const [cat, pm] = await db.batch<{ retired_at?: string | null }>([
+    db.prepare('SELECT retired_at FROM categories WHERE id = ?').bind(b.categoryId),
+    db.prepare('SELECT 1 AS ok FROM payment_methods WHERE code = ?').bind(b.paymentMethod),
+  ])
+  const category = cat!.results[0]
+  if (!category || category.retired_at !== null) return 'invalid_category'
+  if (pm!.results.length === 0) return 'invalid_payment_method'
+  if (b.nextOn !== currentNextOn && b.nextOn < jstDate()) return 'past_date'
   return null
 }
+
+/** 読んでから書くまでの間に費目がやめられた(トリガー recurring_category_active_on_*) */
+const retiredMeanwhile = (e: unknown) => e instanceof Error && e.message.includes('recurring expense category retired')
 
 export const recurring = new Hono<AppEnv>()
 
@@ -78,7 +84,7 @@ recurring.post('/', async (c) => {
   const existing = await db.prepare('SELECT id FROM recurring_expenses WHERE client_request_id = ?').bind(b.clientRequestId).first<{ id: number }>()
   if (existing) return c.json({ id: existing.id, reused: true }, 200)
   const nextOn = b.nextOn ?? firstOn(jstDate(), b.dayOfMonth)
-  const refused = await refusal(db, { ...b, nextOn })
+  const refused = await refusal(db, { ...b, nextOn }, null)
   if (refused) return c.json({ error: refused }, 400)
   const now = nowIso()
   try {
@@ -94,6 +100,7 @@ recurring.post('/', async (c) => {
       const again = (await db.prepare('SELECT id FROM recurring_expenses WHERE client_request_id = ?').bind(b.clientRequestId).first<{ id: number }>())!
       return c.json({ id: again.id, reused: true }, 200)
     }
+    if (retiredMeanwhile(e)) return c.json({ error: 'invalid_category' }, 400)
     throw e
   }
   const created = (await db.prepare('SELECT id FROM recurring_expenses WHERE client_request_id = ?').bind(b.clientRequestId).first<{ id: number }>())!
@@ -107,17 +114,23 @@ recurring.put('/:id{[0-9]+}', async (c) => {
   const b = parsed.data
   const db = c.env.DB
   const id = Number(c.req.param('id'))
-  const row = await db.prepare('SELECT ended_at FROM recurring_expenses WHERE id = ?').bind(id).first<{ ended_at: string | null }>()
+  const row = await db.prepare('SELECT ended_at, next_on FROM recurring_expenses WHERE id = ?').bind(id).first<{ ended_at: string | null; next_on: string }>()
   if (!row || row.ended_at !== null) return c.json({ error: 'not_found' }, 404)
-  const refused = await refusal(db, b)
+  const refused = await refusal(db, b, row.next_on)
   if (refused) return c.json({ error: refused }, 400)
-  const res = await db
-    .prepare(
-      `UPDATE recurring_expenses SET name = ?, category_id = ?, amount = ?, payment_method = ?, day_of_month = ?, next_on = ?, updated_at = ?
-       WHERE id = ? AND ended_at IS NULL`,
-    )
-    .bind(b.name, b.categoryId, b.amount, b.paymentMethod, b.dayOfMonth, b.nextOn, nowIso(), id)
-    .run()
+  let res: D1Result
+  try {
+    res = await db
+      .prepare(
+        `UPDATE recurring_expenses SET name = ?, category_id = ?, amount = ?, payment_method = ?, day_of_month = ?, next_on = ?, updated_at = ?
+         WHERE id = ? AND ended_at IS NULL`,
+      )
+      .bind(b.name, b.categoryId, b.amount, b.paymentMethod, b.dayOfMonth, b.nextOn, nowIso(), id)
+      .run()
+  } catch (e) {
+    if (retiredMeanwhile(e)) return c.json({ error: 'invalid_category' }, 400)
+    throw e
+  }
   if (res.meta.changes === 0) return c.json({ error: 'not_found' }, 404)
   return c.json({ id })
 })

@@ -1,7 +1,7 @@
 // 毎月決まった支出(データと照合 §1.17・表 Q・§4.12)。表 Q の各行と、月末・日 31・止まっていた日の分の境
 import { env } from 'cloudflare:workers'
 import { beforeEach, describe, expect, it } from 'vitest'
-import { dateIn, firstOn, MAX_PER_RUN, nextAfter, runRecurring } from '../worker/recurring'
+import { dateIn, firstOn, MAX_TOTAL_PER_RUN, nextAfter, runRecurring } from '../worker/recurring'
 import type { Bindings } from '../worker/types'
 import { accessToken, addUser, request, serveTestCerts } from './helpers'
 
@@ -70,32 +70,45 @@ describe('日付の計算', () => {
 describe('表 Q 毎月決まった支出を作るか', () => {
   it('Q1: next_on が今日なら作り、次の月へ進める(人の支出と同じ形・照合も掛かる)', async () => {
     const id = await seed({ day: 27, nextOn: '2026-10-27' })
-    expect(await runRecurring(env as unknown as Bindings, at('2026-10-27'))).toEqual({ created: 1, skipped: 0 })
+    expect(await runRecurring(env as unknown as Bindings, at('2026-10-27'))).toEqual({ created: 1, skipped: 0, failed: 0 })
     expect(await made(id)).toEqual([
       { spent_on: '2026-10-27', store_name: '家賃', payment_method: 'bank_transfer', origin: 'person', category_id: 4, amount: 101500 },
     ])
     expect(await nextOn(id)).toBe('2026-11-27')
   })
 
-  it('Q1: 止まっていた日の分は続けて作り、上限の 12 か月で止める(残りは次の判定)', async () => {
-    const id = await seed({ day: 31, nextOn: '2024-01-31' })
+  it('Q1: 止まっていた日の分は続けて作り、1 回の判定の上限(全部の登録で 10 件)で止める(残りは次の判定)', async () => {
+    const a = await seed({ day: 31, nextOn: '2024-01-31' })
+    const b = await seed({ day: 1, nextOn: '2024-01-01' })
     const run = await runRecurring(env as unknown as Bindings, at('2026-10-27'))
-    expect(run.created).toBe(MAX_PER_RUN)
-    const rows = await made(id)
-    expect(rows.map((r) => r.spent_on).slice(0, 3)).toEqual(['2024-01-31', '2024-02-29', '2024-03-31'])
-    expect(await nextOn(id)).toBe('2025-01-31')
+    expect(run.created).toBe(MAX_TOTAL_PER_RUN)
+    // 日付の古い順に作る(どちらかの登録だけが進み続けない)
+    expect((await made(b)).map((r) => r.spent_on)).toEqual(['2024-01-01', '2024-02-01', '2024-03-01', '2024-04-01', '2024-05-01'])
+    expect((await made(a)).map((r) => r.spent_on)).toEqual(['2024-01-31', '2024-02-29', '2024-03-31', '2024-04-30', '2024-05-31'])
+    expect(await nextOn(a)).toBe('2024-06-30')
+    const second = await runRecurring(env as unknown as Bindings, at('2026-10-27'))
+    expect(second.created).toBe(MAX_TOTAL_PER_RUN)
+  })
+
+  it('Q1: その日の支出がもうある(次に作る日を作った日に戻した)ときは作り直さず、次の月へ進めて止まらない', async () => {
+    const id = await seed({ day: 27, nextOn: '2026-09-27' })
+    await runRecurring(env as unknown as Bindings, at('2026-09-27'))
+    await db.prepare("UPDATE recurring_expenses SET next_on = '2026-09-27' WHERE id = ?").bind(id).run()
+    expect(await runRecurring(env as unknown as Bindings, at('2026-10-27'))).toEqual({ created: 1, skipped: 1, failed: 0 })
+    expect((await made(id)).map((r) => r.spent_on)).toEqual(['2026-09-27', '2026-10-27'])
+    expect(await nextOn(id)).toBe('2026-11-27')
   })
 
   it('Q2: next_on が明日なら作らない(境: 今日の前日まで作り、今日の翌日は作らない)', async () => {
     const id = await seed({ day: 28, nextOn: '2026-10-28' })
-    expect(await runRecurring(env as unknown as Bindings, at('2026-10-27'))).toEqual({ created: 0, skipped: 0 })
+    expect(await runRecurring(env as unknown as Bindings, at('2026-10-27'))).toEqual({ created: 0, skipped: 0, failed: 0 })
     expect(await made(id)).toEqual([])
     expect(await nextOn(id)).toBe('2026-10-28')
   })
 
   it('Q3: 止めた登録は next_on が過ぎていても作らない', async () => {
     const id = await seed({ day: 1, nextOn: '2026-10-01', ended: true })
-    expect(await runRecurring(env as unknown as Bindings, at('2026-10-27'))).toEqual({ created: 0, skipped: 0 })
+    expect(await runRecurring(env as unknown as Bindings, at('2026-10-27'))).toEqual({ created: 0, skipped: 0, failed: 0 })
     expect(await made(id)).toEqual([])
   })
 
@@ -182,6 +195,22 @@ describe('毎月決まった支出の口(§4.12)', () => {
     expect(await refused.json()).toEqual({ error: 'used_by_recurring' })
     await request(`/api/recurring/${id}`, json('DELETE'))
     expect((await retire()).status).toBe(200)
+  })
+
+  it('直すとき、次に作る日を変えなければ過ぎた日のままでよい(額だけ直せる)。変えて今日より前なら past_date', async () => {
+    const id = await seed({ day: 27, nextOn: '2026-08-27' })
+    const put = (b: object) => request(`/api/recurring/${id}`, json('PUT', { ...base, ...b }))
+    expect((await put({ amount: 90000, nextOn: '2026-08-27' })).status).toBe(200)
+    expect(await (await put({ nextOn: '2026-08-28' })).json()).toEqual({ error: 'past_date' })
+  })
+
+  it('費目の守り: やめた費目で登録はできない(DB でも止まる)。未分類を使う登録があっても、未分類をやめるのは system_category', async () => {
+    await db.prepare("UPDATE categories SET retired_at = '2026-01-01T00:00:00Z' WHERE id = 7").run()
+    await expect(seed({ day: 1, nextOn: '2030-01-01', category: 7 })).rejects.toThrow(/recurring expense category retired/)
+    const unc = (await db.prepare("SELECT category_id FROM system_categories WHERE role = 'uncategorized'").first<{ category_id: number }>())!.category_id
+    await seed({ day: 1, nextOn: '2030-01-01', category: unc })
+    const res = await request(`/api/categories/${unc}`, json('PATCH', { retired: true }))
+    expect(await res.json()).toEqual({ error: 'system_category' })
   })
 
   it('一覧の口は自動で作った支出に recurring の印を付ける', async () => {

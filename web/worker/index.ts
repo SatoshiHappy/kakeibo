@@ -9,6 +9,11 @@ export default {
   // Access と §3.1 の判定を通らない入口は、HTTP の口を持たないここだけ
   async scheduled(controller, env, ctx) {
     const now = new Date(controller.scheduledTime)
-    ctx.waitUntil(runRecurring(env, now).then(() => runStockAlerts(env, now)).then(() => undefined))
+    // 互いの失敗で止めない(在庫の通知は毎月決まった支出の失敗に関わらず送る)
+    ctx.waitUntil(
+      Promise.allSettled([runRecurring(env, now), runStockAlerts(env, now)]).then((rs) => {
+        for (const r of rs) if (r.status === 'rejected') console.error('scheduled job failed', r.reason)
+      }),
+    )
   },
 } satisfies ExportedHandler<Bindings>

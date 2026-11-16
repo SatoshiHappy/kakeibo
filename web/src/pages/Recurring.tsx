@@ -1,5 +1,5 @@
 // 毎月決まった支出(家賃・ネット代など)。正本: データと照合 §1.17・表 Q・§4.12
-import { useMutation } from '@tanstack/react-query'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useId, useRef, useState, type FormEvent } from 'react'
 import { Screen, TopBar } from '../components/Shell'
 import { ApiError } from '../lib/api'
@@ -40,6 +40,7 @@ const md = (date: string) => `${Number(date.slice(5, 7))}/${Number(date.slice(8,
 export function RecurringPage() {
   const q = useApiQuery<RecurringResponse>(PATH)
   const [editing, setEditing] = useState<Recurring | 'new' | null>(null)
+  const [error, setError] = useState<string | null>(null)
   const right = (
     <button className="textbtn" type="button" onClick={() => setEditing('new')}>
       + 足す
@@ -48,6 +49,14 @@ export function RecurringPage() {
   const data = q.data
   return (
     <Screen label="毎月決まった支出" tabs={false} top={<TopBar title="毎月決まった支出" left={{ kind: 'back', to: '/menu', label: 'メニュー' }} right={right} />}>
+      {error && (
+        <div className="errline" role="alert">
+          <span>{error}</span>
+          <button className="textbtn" type="button" onClick={() => setError(null)}>
+            閉じる
+          </button>
+        </div>
+      )}
       <p className="note">登録すると、毎月その日の朝に支出を自動で作ります(一覧に「自動」の印)。額が変わった月は、作られた支出を直してください。カードで払うものは明細から入るので、登録は口座振替・現金などのものに使います。</p>
       {!data ? (
         <p className="note">読み込み中…</p>
@@ -71,13 +80,23 @@ export function RecurringPage() {
           ))}
         </div>
       )}
-      {data && <RecurringDialog target={editing} data={data} onClose={() => setEditing(null)} />}
+      {data && <RecurringDialog target={editing} data={data} onClose={() => setEditing(null)} onStopError={setError} />}
     </Screen>
   )
 }
 
 /** 足す・直す小窓。口が断る誤り(やめた費目・過ぎた日)をその場で直せるよう、応答を待ってから閉じる */
-function RecurringDialog({ target, data, onClose }: { target: Recurring | 'new' | null; data: RecurringResponse; onClose: () => void }) {
+function RecurringDialog({
+  target,
+  data,
+  onClose,
+  onStopError,
+}: {
+  target: Recurring | 'new' | null
+  data: RecurringResponse
+  onClose: () => void
+  onStopError: (message: string) => void
+}) {
   const ref = useRef<HTMLDialogElement>(null)
   const first = useRef<HTMLInputElement>(null)
   const requestId = useRef('')
@@ -106,10 +125,20 @@ function RecurringDialog({ target, data, onClose }: { target: Recurring | 'new' 
     onError: (e) => setError(errorText(e)),
     onSettled: refetch,
   })
+  const qc = useQueryClient()
+  // 止めるは断られて直す入力が無いので、押した時点で一覧から外して閉じ、失敗したら戻して知らせる(基盤 §2.3)
   const stop = useMutation({
-    mutationFn: async () => api.request(`${PATH}/${item!.id}`, { method: 'DELETE' }),
-    onSuccess: () => onClose(),
-    onError: (e) => setError(errorText(e)),
+    mutationFn: async (id: number) => api.request(`${PATH}/${id}`, { method: 'DELETE' }),
+    onMutate: (id) => {
+      const before = qc.getQueryData<RecurringResponse>([PATH])
+      qc.setQueryData<RecurringResponse>([PATH], (d) => d && { ...d, items: d.items.filter((i) => i.id !== id) })
+      onClose()
+      return { before }
+    },
+    onError: (e, _id, ctx) => {
+      if (ctx?.before) qc.setQueryData([PATH], ctx.before)
+      onStopError(errorText(e))
+    },
     onSettled: refetch,
   })
 
@@ -123,7 +152,7 @@ function RecurringDialog({ target, data, onClose }: { target: Recurring | 'new' 
       categoryId: Number(f.get('categoryId')),
       paymentMethod: String(f.get('paymentMethod')),
       dayOfMonth: Number(f.get('dayOfMonth')),
-      nextOn: item === null ? null : String(f.get('nextOn')),
+      nextOn: String(f.get('nextOn') ?? '') || null,
     })
   }
 
@@ -165,21 +194,17 @@ function RecurringDialog({ target, data, onClose }: { target: Recurring | 'new' 
             <span>毎月の日(その月に無い日は月末)</span>
             <input name="dayOfMonth" type="number" inputMode="numeric" required min={1} max={31} step={1} defaultValue={item?.dayOfMonth ?? ''} />
           </label>
-          {item ? (
-            <label className="fld">
-              <span>次に作る日</span>
-              <input name="nextOn" type="date" required min={data.today} defaultValue={item.nextOn} />
-            </label>
-          ) : (
-            <p className="note">最初の支出は、今日以後で最初のその日に作ります。</p>
-          )}
+          <label className="fld">
+            <span>{item ? '次に作る日' : '最初に作る日(空なら今日以後で最初のその日)'}</span>
+            <input name="nextOn" type="date" required={item !== null} min={item && item.nextOn < data.today ? item.nextOn : data.today} defaultValue={item?.nextOn ?? ''} />
+          </label>
           {error && (
             <p className="ferr" role="alert">
               {error}
             </p>
           )}
           {item && (
-            <button className="sbtn" type="button" disabled={stop.isPending} onClick={() => stop.mutate()}>
+            <button className="sbtn" type="button" disabled={stop.isPending} onClick={() => stop.mutate(item.id)}>
               止める(作った支出は残ります)
             </button>
           )}

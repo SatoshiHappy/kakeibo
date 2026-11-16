@@ -20,6 +20,7 @@ function errorText(e: unknown) {
   if (!(e instanceof ApiError) || e.status === null) return '通信できませんでした。通信のある所でもう一度入れてください。'
   if (e.code === 'duplicate_name') return '同じ名前の費目があります。'
   if (e.code === 'system_category') return 'この費目はやめられません(未分類か、自動の規則が使っています)。'
+  if (e.code === 'used_by_recurring') return '毎月決まった支出がこの費目を使っています。先にメニューの「毎月決まった支出」で止めるか、費目を変えてください。'
   return '保存できませんでした。もう一度入れてください。'
 }
 
