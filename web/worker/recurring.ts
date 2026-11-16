@@ -90,7 +90,7 @@ export async function runRecurring(env: Bindings, now: Date): Promise<RecurringR
 type CreateResult = { kind: 'created' | 'exists'; updatedAt: string } | { kind: 'changed' }
 
 /** 1 つ作る。1 つの batch で、先に next_on を進め(読んだ時の next_on・updated_at・止めていないときだけ)、
- * 進めたときだけ支出を作る(進めていなければ支出の client_request_id を NULL にして batch ごと失敗させる = 何も書かない)。
+ * この batch が進めたときだけ支出を作る(進めていなければ支出の client_request_id を NULL にして batch ごと失敗させる = 何も書かない)。
  * その日の支出がもうある(UNIQUE)ときは作り直さず、next_on だけを進める */
 export async function createOne(env: Bindings, r: Row, cur: { on: string; updatedAt: string }, now: Date): Promise<CreateResult> {
   const db = env.DB
@@ -112,10 +112,10 @@ export async function createOne(env: Bindings, r: Row, cur: { on: string; update
       db
         .prepare(
           `INSERT INTO expenses (origin, client_request_id, receipt_id, spent_on, store_name, payment_method, registered_by, created_at, updated_at, recurring_id)
-           SELECT 'person', CASE WHEN EXISTS (SELECT 1 FROM recurring_expenses WHERE id = ? AND next_on = ? AND updated_at = ?) THEN ? END,
-                  NULL, ?, ?, ?, ?, ?, ?, ?`,
+           SELECT 'person', CASE WHEN changes() = 1 THEN ? END, NULL, ?, ?, ?, ?, ?, ?, ?`,
         )
-        .bind(r.id, next, at, key, on, r.name, r.payment_method, r.created_by, at, at, r.id),
+        // changes() = 直前の claim が進めた行の数(同じ batch = 同じ接続の続き)。同じ時刻の判定が 2 回走っても、進めた方だけが作る
+        .bind(key, on, r.name, r.payment_method, r.created_by, at, at, r.id),
       db
         .prepare(
           `INSERT INTO items (expense_id, position, name, category_id, tax_rate, base_amount, amount, stock_item_id, stock_quantity)

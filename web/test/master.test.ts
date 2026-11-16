@@ -91,20 +91,23 @@ describe('費目', () => {
   })
   it('やめた費目は新しい支出に使えない', async () => {
     await request('/api/categories/12', json('PATCH', { retired: true }))
-    const res = await request(
-      '/api/expenses',
-      json('POST', {
-        clientRequestId: `m-${++seq}`,
-        receiptId: null,
-        spentOn: '2026-10-01',
-        storeName: 's',
-        paymentMethod: 'cash',
-        items: [{ name: 'x', categoryId: 12, taxRate: null, baseAmount: 100 }],
-        adjustments: [],
-      }),
-    )
-    expect(res.status).toBe(400)
-    await request('/api/categories/12', json('PATCH', { retired: false }))
+    try {
+      const res = await request(
+        '/api/expenses',
+        json('POST', {
+          clientRequestId: `m-${++seq}`,
+          receiptId: null,
+          spentOn: '2026-10-01',
+          storeName: 's',
+          paymentMethod: 'cash',
+          items: [{ name: 'x', categoryId: 12, taxRate: null, baseAmount: 100 }],
+          adjustments: [],
+        }),
+      )
+      expect(res.status).toBe(400)
+    } finally {
+      await request('/api/categories/12', json('PATCH', { retired: false })) // 落ちても後のテストにやめた費目を残さない
+    }
   })
 })
 

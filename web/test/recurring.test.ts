@@ -90,6 +90,35 @@ describe('表 Q 毎月決まった支出を作るか', () => {
     expect(second.created).toBe(MAX_TOTAL_PER_RUN)
   })
 
+  it('Q1: 上限は作った数でなく試した数で数える(もうある日だけが続いても 10 回で止める)', async () => {
+    const id = await seed({ day: 1, nextOn: '2024-01-01' })
+    await runRecurring(env as unknown as Bindings, at('2026-10-27'))
+    await db.prepare("UPDATE recurring_expenses SET next_on = '2024-01-01' WHERE id = ?").bind(id).run()
+    expect(await runRecurring(env as unknown as Bindings, at('2026-10-27'))).toEqual({ created: 0, skipped: MAX_TOTAL_PER_RUN, failed: 0 })
+    expect(await nextOn(id)).toBe('2024-11-01')
+  })
+
+  it('途中の書き込みが失敗したら batch ごと戻る(支出も next_on の進みも残らない)。ほかの登録は続ける', async () => {
+    const bad = await seed({ day: 27, nextOn: '2026-10-27' })
+    const good = await seed({ day: 27, nextOn: '2026-10-27' })
+    const row = { id: bad, name: '家賃', category_id: 99999, amount: 101500, payment_method: 'bank_transfer', day_of_month: 27, next_on: '2026-10-27', updated_at: '2026-01-01T00:00:00Z', created_by: 1, card_compatible: 0 }
+    // 品目の費目が無い(外部キー)= batch の 3 つ目で落ちる
+    await expect(createOne(env as unknown as Bindings, row, { on: '2026-10-27', updatedAt: '2026-01-01T00:00:00Z' }, at('2026-10-27'))).rejects.toThrow()
+    expect(await db.prepare('SELECT COUNT(*) AS n FROM expenses WHERE recurring_id = ?').bind(bad).first<{ n: number }>()).toEqual({ n: 0 })
+    expect(await nextOn(bad)).toBe('2026-10-27')
+    // 判定の中の失敗は数えて、ほかの登録は作る(品目の書き込みだけを落とすトリガーを試しの間だけ置く)
+    await db.prepare("UPDATE recurring_expenses SET name = 'こわれる' WHERE id = ?").bind(bad).run()
+    await db.prepare("CREATE TRIGGER test_items_fail BEFORE INSERT ON items WHEN NEW.name = 'こわれる' BEGIN SELECT RAISE(ABORT, 'boom'); END").run()
+    try {
+      expect(await runRecurring(env as unknown as Bindings, at('2026-10-27'))).toEqual({ created: 1, skipped: 0, failed: 1 })
+    } finally {
+      await db.prepare('DROP TRIGGER test_items_fail').run()
+    }
+    expect(await made(bad)).toEqual([])
+    expect(await nextOn(bad)).toBe('2026-10-27')
+    expect((await made(good)).map((r) => r.spent_on)).toEqual(['2026-10-27'])
+  })
+
   it('Q1: その日の支出がもうある(次に作る日を作った日に戻した)ときは作り直さず、次の月へ進めて止まらない', async () => {
     const id = await seed({ day: 27, nextOn: '2026-09-27' })
     await runRecurring(env as unknown as Bindings, at('2026-09-27'))
@@ -132,6 +161,18 @@ describe('表 Q 毎月決まった支出を作るか', () => {
     await db.prepare('DELETE FROM expenses WHERE recurring_id = ?').bind(id).run()
     await runRecurring(env as unknown as Bindings, at('2026-10-27'))
     expect(await made(id)).toEqual([])
+  })
+
+  it('同じ時刻の判定が 2 回走り(同じ行を読んだ)、間に作った支出を人が消しても作り直さない', async () => {
+    const id = await seed({ day: 27, nextOn: '2026-10-27' })
+    const row = { id, name: '家賃', category_id: 4, amount: 101500, payment_method: 'bank_transfer', day_of_month: 27, next_on: '2026-10-27', updated_at: '2026-01-01T00:00:00Z', created_by: 1, card_compatible: 0 }
+    const read = { on: '2026-10-27', updatedAt: '2026-01-01T00:00:00Z' }
+    expect((await createOne(env as unknown as Bindings, row, { ...read }, at('2026-10-27'))).kind).toBe('created')
+    await db.prepare('DELETE FROM expenses WHERE recurring_id = ?').bind(id).run()
+    // 2 回目は同じ読んだ値・同じ時刻(scheduledTime)。進めた行(next_on・updated_at)が 1 回目と同じになっても作らない
+    expect(await createOne(env as unknown as Bindings, row, { ...read }, at('2026-10-27'))).toEqual({ kind: 'changed' })
+    expect(await made(id)).toEqual([])
+    expect(await nextOn(id)).toBe('2026-11-27')
   })
 
   it('楽天カードで登録すると、人の支出と同じく明細の行と照合して結ぶ(表 A-1 の 2 行。特別扱いしない)', async () => {

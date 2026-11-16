@@ -3,7 +3,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useId, useRef, useState, type FormEvent } from 'react'
 import { Screen, TopBar } from '../components/Shell'
 import { ApiError } from '../lib/api'
-import { yen } from '../lib/format'
+import { jstToday, yen } from '../lib/format'
 import { api, refetchAfterSave, useApiQuery } from '../lib/query'
 
 const PATH = '/api/recurring'
@@ -148,8 +148,11 @@ function RecurringDialog({
     e.preventDefault()
     const f = new FormData(e.currentTarget)
     const nextOn = String(f.get('nextOn') ?? '') || null
-    // 口と同じ規則: 日を変えたときだけ今日以後(作り残しで過ぎた日は、変えなければそのままでよい)
-    if (nextOn !== null && nextOn !== item?.nextOn && nextOn < data.today) {
+    // 口と同じ規則: 日を変えたときだけ今日以後(作り残しで過ぎた日は、変えなければそのままでよい)。
+    // 今日は一覧を読んだ時の日と端末の日の遅い方(開いたまま日をまたいでも、送ってから断られない)
+    const now = jstToday()
+    const today = now > data.today ? now : data.today
+    if (nextOn !== null && nextOn !== item?.nextOn && nextOn < today) {
       setError('次に作る日は今日以後にしてください。')
       return
     }
