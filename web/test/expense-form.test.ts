@@ -153,7 +153,7 @@ describe('保存の口の検査(§1.6)', () => {
   })
   it('日付: 本当にない日(2026-02-29・2026-11-31)は 400 invalid_body。うるう日は通る', async () => {
     expect((await post(base({ spentOn: '2026-02-29' }))).status).toBe(400)
-    expect((await post(base({ spentOn: '2026-11-31' }))).status).toBe(400)
+    for (const spentOn of ['2026-11-31', '2026-11-00', '2026-13-01', '2026-12-32']) expect((await post(base({ spentOn }))).status).toBe(400)
     expect((await post(base({ spentOn: '2024-02-29' }))).status).toBe(201)
   })
   it('在庫の品物は額が正の品目だけ(返品・0 円には付けられない)', async () => {

@@ -212,7 +212,12 @@ export type Body = {
 
 /** 保存の体を作る。入力の誤りがあれば、人に見せる文の並びを返す(口の検査 §2.2 と同じ条件を先に見る) */
 /** 本当にある日か(口の検査と同じ。2026-02-30 などは無い) */
-export const isRealDate = (v: string) => /^\d{4}-\d{2}-\d{2}$/.test(v) && new Date(`${v}T00:00:00Z`).toISOString().slice(0, 10) === v
+export function isRealDate(v: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(v)) return false
+  // 月 13・日 32 などは Invalid Date(toISOString が投げる)なので先に見る
+  const t = Date.parse(`${v}T00:00:00Z`)
+  return !Number.isNaN(t) && new Date(t).toISOString().slice(0, 10) === v
+}
 
 export function toBody(d: ExpenseDraft, today = jstToday(new Date())): { ok: true; body: Body } | { ok: false; errors: string[] } {
   const errors: string[] = []

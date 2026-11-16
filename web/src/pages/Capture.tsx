@@ -67,7 +67,7 @@ export function Capture() {
         <Icon name="camera" size={24} />
         <span className="lines">
           <b>レシートを撮る</b>
-          <span className="sub">長いレシートは続けて何枚でも</span>
+          <span className="sub">長いレシートは続けて {MAX_PHOTOS_PER_RECEIPT} 枚まで</span>
         </span>
       </button>
       <div className="row2">

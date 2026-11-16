@@ -88,9 +88,11 @@ describe('表 V 確かめて保存の画面の始まり', () => {
     expect(s.draft.spentOn).toBe('2026-11-16')
     expect(s.draft.paymentMethod).toBe('')
     // 本当にない日に読めたときも撮った日
-    const bad = startOf(mode, withReceipt(receipt({ result: { ...ai, purchasedOn: '2026-02-30' } })), NOW)
-    if (bad.row !== 'V1') throw new Error(bad.row)
-    expect(bad.draft.spentOn).toBe('2026-11-16')
+    for (const purchasedOn of ['2026-02-30', '2026-11-00', '2026-13-01', '2026-12-32']) {
+      const bad = startOf(mode, withReceipt(receipt({ result: { ...ai, purchasedOn } })), NOW)
+      if (bad.row !== 'V1') throw new Error(bad.row)
+      expect(bad.draft.spentOn).toBe('2026-11-16')
+    }
   })
   it('V2: 読み取り中は入力を出さない。「待たずに手で入力する」なら V3 の初めの値', () => {
     expect(startOf(mode, withReceipt(receipt({ read: 'reading', result: null })), NOW).row).toBe('V2')
