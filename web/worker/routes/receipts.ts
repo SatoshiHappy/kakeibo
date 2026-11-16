@@ -123,7 +123,7 @@ receipts.post('/', async (c) => {
 receipts.get('/', async (c) => {
   // 下書き(どの支出からも指されないレシート)の一覧。撮る画面のカードに出す店名・印字の合計・写真の枚数を添える(データと照合 §4.6)
   const { results } = await c.env.DB.prepare(
-    `SELECT r.id, r.uploaded_at, r.ai_status, r.ai_requested_at,
+    `SELECT r.id, r.uploaded_at, r.ai_status, r.ai_requested_at, r.ai_error_kind,
             json_extract(r.ai_result, '$.storeName') AS store_name,
             json_extract(r.ai_result, '$.printedTotal') AS printed_total,
             (SELECT COUNT(*) FROM receipt_images i WHERE i.receipt_id = r.id) AS image_count
@@ -135,6 +135,7 @@ receipts.get('/', async (c) => {
     uploaded_at: string
     ai_status: ReceiptRow['ai_status']
     ai_requested_at: string
+    ai_error_kind: string | null
     store_name: string | null
     printed_total: number | null
     image_count: number
@@ -145,6 +146,7 @@ receipts.get('/', async (c) => {
       id: r.id,
       uploadedAt: r.uploaded_at,
       read: readDisplay(r.ai_status, r.ai_requested_at, now),
+      errorKind: r.ai_error_kind,
       storeName: r.store_name === '' ? null : r.store_name,
       printedTotal: r.printed_total,
       imageCount: r.image_count,

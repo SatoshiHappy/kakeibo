@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import {
   adjustmentSummary,
+  flipSign,
+  isNegativeYen,
   parseYen,
+  readFailure,
   startOf,
   toBody,
   totalLine,
@@ -45,6 +48,7 @@ const receipt = (over: Partial<ReceiptDetail>): ReceiptDetail => ({
   id: 5,
   uploadedAt: '2026-11-15T15:30:00Z',
   read: 'read',
+  errorKind: null,
   result: ai,
   expenseId: null,
   images: [{ position: 1, stored: true }],
@@ -178,6 +182,18 @@ describe('額と合計', () => {
     expect(parseYen('-')).toBeNull()
     expect(parseYen('1.5')).toBeNull()
   })
+  it('「−」のボタンは符号を変える(空なら「-」を置く。全角の「−」「ー」もマイナスと見る)', () => {
+    expect(flipSign('300')).toBe('-300')
+    expect(flipSign('-300')).toBe('300')
+    expect(flipSign('−300')).toBe('300')
+    expect(flipSign('ー300')).toBe('300')
+    expect(flipSign('')).toBe('-')
+    expect(flipSign('-')).toBe('')
+    expect(isNegativeYen('-300')).toBe(true)
+    expect(isNegativeYen('300')).toBe(false)
+    expect(isNegativeYen('')).toBe(false)
+    expect(parseYen(flipSign('1,280'))).toBe(-1280)
+  })
   it('合計 = 品目の額の合計 + 値引き・外税(読めない額は 0)', () => {
     expect(totals(draft())).toEqual({ itemsTotal: 1238, adjustmentsTotal: 19, total: 1257 })
     expect(totals(draft({ adjustments: [{ key: 'b', kind: 'discount', taxRate: null, amount: '-' }] })).total).toBe(1238)
@@ -242,5 +258,17 @@ describe('保存の体', () => {
     expect(toBody(draft({ items: item('-300') }))).toMatchObject({ ok: false, errors: ['品目 1: 返品・0 円の品目は在庫に足せません。品物を「なし」にしてください。'] })
     expect(toBody(draft({ items: item('0') })).ok).toBe(false)
     expect(toBody(draft({ items: item('1') })).ok).toBe(true)
+  })
+})
+
+describe('読めなかった理由(表 R の R4)', () => {
+  it('時間切れは種類より先。上限・形が合わない・その他で文を分け、上限は読み直しを勧めない', () => {
+    expect(readFailure('timed_out', null).tag).toBe('読めなかった(時間切れ)')
+    expect(readFailure('failed', 'timeout').tag).toBe('読めなかった(時間切れ)')
+    expect(readFailure('failed', 'quota')).toEqual({ tag: '読めなかった(AI の上限)', text: expect.stringContaining('手で入力してください') })
+    expect(readFailure('failed', 'quota').text).not.toContain('読み直す')
+    expect(readFailure('failed', 'invalid_output').text).toContain('読み直す')
+    expect(readFailure('failed', 'other').text).toContain('AI を呼べませんでした')
+    expect(readFailure('failed', null).text).toContain('AI を呼べませんでした')
   })
 })

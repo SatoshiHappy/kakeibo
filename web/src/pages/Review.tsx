@@ -70,7 +70,7 @@ export function Review() {
   })
 
   const onAction = (card: Card, a: Action) => {
-    if (a.kind === 'edit') navigate(`/expenses/${a.expenseId}`)
+    if (a.kind === 'edit') navigate(`/expenses/${a.expenseId}?from=review`)
     else if (a.kind === 'search') setSearch({ card, by: a.by })
     else act.mutate({ card, action: a })
   }

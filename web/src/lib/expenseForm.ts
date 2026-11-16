@@ -15,10 +15,27 @@ export type AiRead = {
   adjustments: { kind: 'discount' | 'tax'; amount: number; taxRate: Rate }[]
   printedTotal: number | null
 }
+/** 読めなかった種類(表 R の R4。口の ai_error_kinds) */
+export type AiErrorKind = 'invalid_output' | 'quota' | 'timeout' | 'other'
+
+/** 読めなかったときの短い札(撮るのカード)と、何をすればよいかの文(確かめて保存の上)。時間切れの表示(5 分)は種類より先に見る */
+export function readFailure(read: 'timed_out' | 'failed', kind: AiErrorKind | null): { tag: string; text: string } {
+  if (read === 'timed_out' || kind === 'timeout') return { tag: '読めなかった(時間切れ)', text: 'AI の読み取りが時間切れでした。読み直すか、手で入力してください。' }
+  switch (kind) {
+    case 'quota':
+      return { tag: '読めなかった(AI の上限)', text: 'AI の使える量が尽きています(月が替わると戻ります)。手で入力してください。' }
+    case 'invalid_output':
+      return { tag: '読めなかった', text: 'AI の答えがレシートの形になりませんでした。読み直すか、手で入力してください。' }
+    default:
+      return { tag: '読めなかった', text: 'AI を呼べませんでした。読み直すか、手で入力してください。' }
+  }
+}
+
 export type ReceiptDetail = {
   id: number
   uploadedAt: string
   read: 'reading' | 'timed_out' | 'read' | 'failed'
+  errorKind: AiErrorKind | null
   result: AiRead | null
   expenseId: number | null
   images: { position: number; stored: boolean }[]
@@ -171,6 +188,14 @@ export function startOf(mode: Mode, data: FormResponse, now = new Date(), manual
 }
 
 /** 打った額を整数に。「1,280」「−20」「-20」を読む。読めなければ null */
+const MINUS = /^\s*[-−ー–]/
+
+/** 額の欄の字がマイナスか(「−」のボタンの押された印) */
+export const isNegativeYen = (s: string) => MINUS.test(s)
+
+/** 額の欄の符号を変える(空なら「-」だけを置き、続けて数字を打てるようにする) */
+export const flipSign = (s: string) => (MINUS.test(s) ? s.replace(MINUS, '') : `-${s.trim()}`)
+
 export function parseYen(s: string): number | null {
   const t = s.replace(/[,\s]/g, '').replace(/^[−ー–]/, '-')
   return /^-?\d+$/.test(t) ? Number(t) : null

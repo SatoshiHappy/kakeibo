@@ -2,14 +2,17 @@
 import { useMutation } from '@tanstack/react-query'
 import { del, get, set } from 'idb-keyval'
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
-import { useNavigate, useParams } from 'react-router'
+import { useNavigate, useParams, useSearchParams } from 'react-router'
 import { Icon } from '../components/Icon'
 import { Screen, TopBar } from '../components/Shell'
 import { ApiError } from '../lib/api'
 import {
   adjustmentSummary,
   blankItem,
+  flipSign,
+  isNegativeYen,
   parseYen,
+  readFailure,
   startOf,
   toBody,
   totalLine,
@@ -45,14 +48,20 @@ export function EditExpenseForm() {
 const pathOf = (m: Mode) =>
   m.kind === 'receipt' ? `/api/expense-form?receipt=${m.receiptId}` : m.kind === 'expense' ? `/api/expense-form?expense=${m.expenseId}` : '/api/expense-form'
 const storeKey = (m: Mode) => `kakeibo-form:${m.kind === 'receipt' ? `receipt-${m.receiptId}` : m.kind === 'expense' ? `expense-${m.expenseId}` : 'new'}`
-const backOf = (m: Mode) => (m.kind === 'expense' ? '/list' : '/capture')
+/** 戻る先: 確かめるから開いた直す画面(`?from=review`)は確かめるへ、ほかの直す画面は一覧へ、下書き・手入力は撮るへ */
+const backOf = (m: Mode, from: string | null) =>
+  m.kind === 'expense'
+    ? from === 'review'
+      ? ({ kind: 'back', to: '/review', label: '確かめるに戻る' } as const)
+      : ({ kind: 'back', to: '/list', label: '一覧に戻る' } as const)
+    : ({ kind: 'back', to: '/capture', label: '撮るに戻る' } as const)
 
-/** 保存の後に古くなる一覧(撮る・ホーム・一覧・在庫) */
+/** 保存の後に古くなる一覧(撮る・ホーム・一覧・在庫・確かめる) */
 const refetchLists = () =>
   refetchAfterSave({
     predicate: (q) => {
       const k = String(q.queryKey[0])
-      return k === '/api/receipts' || k.startsWith('/api/home') || k.startsWith('/api/expenses') || k === '/api/stock'
+      return k === '/api/receipts' || k.startsWith('/api/home') || k.startsWith('/api/expenses') || k === '/api/stock' || k.startsWith('/api/review')
     },
   })
 
@@ -102,7 +111,8 @@ function ExpenseFormPage({ mode }: { mode: Mode }) {
     if (redirect) navigate(redirect, { replace: true })
   }, [redirect, navigate])
 
-  const back = { kind: 'back', to: backOf(mode), label: mode.kind === 'expense' ? '一覧に戻る' : '撮るに戻る' } as const
+  const [search] = useSearchParams()
+  const back = backOf(mode, search.get('from'))
   const title = mode.kind === 'expense' ? '支出を直す' : mode.kind === 'new' ? '手で入力' : '確かめて保存'
   const shell = (children: ReactNode, right?: ReactNode) => (
     <Screen label={title} tabs={false} top={<TopBar title={title} left={back} right={right} />}>
@@ -158,7 +168,7 @@ function errorText(e: unknown): string {
   if (!(e instanceof ApiError) || e.status === null) return '通信できませんでした。通信のある所でもう一度押してください。'
   switch (e.code) {
     case 'no_distribution_target':
-      return '値引き・外税を配る品目がありません(例: 8% の外税があるのに 8% の品目が無い)。率か品目を直してください。'
+      return '値引き・外税を配る品目がありません。値引きはマイナス(「−」のボタン)で入れます(返品のレシートでは逆)。外税は、その率の品目があるかを確かめてください。'
     case 'invalid_category':
       return '使えない費目があります。費目を選び直してください。'
     case 'invalid_stock_item':
@@ -208,7 +218,8 @@ function Editor(props: {
   }, [key])
 
   const leave = async () => {
-    await del(key)
+    // 保存は済んでいる。端末の下書きを消せなくても保存の誤りとしては出さない(押し直しても直らないため)。記録だけ残す
+    await del(key).catch((e: unknown) => console.warn('draft delete failed', e))
     void refetchLists()
     navigate(back.to, { replace: true })
   }
@@ -281,7 +292,9 @@ function Editor(props: {
             row === 'V1'
               ? 'AI が読んだ内容です。違う所を押して直してください。写真を押すと大きく見られます。'
               : row === 'V3'
-                ? '読めませんでした。手で入力するか、読み直してください。'
+                ? data.receipt.read === 'failed' || data.receipt.read === 'timed_out'
+                  ? readFailure(data.receipt.read, data.receipt.errorKind).text
+                  : '読めませんでした。手で入力するか、読み直してください。'
                 : '写真を押すと大きく見られます。'
           }
         >
@@ -519,10 +532,7 @@ function ItemEditor(props: { no: number; item: ItemDraft; data: FormResponse; on
           <span>品名</span>
           <input value={item.name} maxLength={200} onChange={(e) => onChange({ name: e.currentTarget.value })} />
         </label>
-        <label className="fld">
-          <span>額(値引のあと)</span>
-          <input inputMode="numeric" value={item.baseAmount} onChange={(e) => onChange({ baseAmount: e.currentTarget.value })} />
-        </label>
+        <YenField label="額(値引のあと)" value={item.baseAmount} onChange={(v) => onChange({ baseAmount: v })} />
         <label className="fld">
           <span>費目</span>
           <select value={item.categoryId ?? ''} onChange={(e) => onChange({ categoryId: e.currentTarget.value === '' ? null : Number(e.currentTarget.value) })}>
@@ -580,6 +590,22 @@ function ItemEditor(props: { no: number; item: ItemDraft; data: FormResponse; on
   )
 }
 
+/** 円の額の欄。iPhone の数字のキーボードには「-」が無いので、符号はボタンで変える(返品・値引き) */
+function YenField(props: { label: string; value: string; onChange: (v: string) => void }) {
+  const id = useId()
+  return (
+    <div className="fld">
+      <label htmlFor={id}>{props.label}</label>
+      <div className="signed">
+        <input id={id} inputMode="numeric" value={props.value} onChange={(e) => props.onChange(e.currentTarget.value)} />
+        <button className="signbtn" type="button" aria-label="マイナス" aria-pressed={isNegativeYen(props.value)} onClick={() => props.onChange(flipSign(props.value))}>
+          −
+        </button>
+      </div>
+    </div>
+  )
+}
+
 function Adjustments(props: {
   items: AdjustmentDraft[]
   onChange: (k: string, p: Partial<AdjustmentDraft>) => void
@@ -590,7 +616,7 @@ function Adjustments(props: {
 }) {
   return (
     <div className="adjedit" role="group" aria-label="レシート全体の値引き・外税">
-      <p className="note">レシート全体にかかる値引きと外税(内税・ポイントで払った分は入れない)。値引きは「-」を付ける。</p>
+      <p className="note">レシート全体にかかる値引きと外税(内税・ポイントで払った分は入れない)。値引きはマイナス(「−」のボタン)で入れる(返品のレシートでは逆)。</p>
       {props.items.map((a, n) => (
         <div key={a.key} className="adjrow" role="group" aria-label={`値引き・外税 ${n + 1}`}>
           <label className="fld">
@@ -609,10 +635,7 @@ function Adjustments(props: {
               <option value="0">0% の品目</option>
             </select>
           </label>
-          <label className="fld">
-            <span>額</span>
-            <input inputMode="numeric" value={a.amount} onChange={(e) => props.onChange(a.key, { amount: e.currentTarget.value })} />
-          </label>
+          <YenField label="額" value={a.amount} onChange={(v) => props.onChange(a.key, { amount: v })} />
           <button className="iconbtn" type="button" aria-label={`値引き・外税 ${n + 1} を消す`} onClick={() => props.onRemove(a.key)}>
             <Icon name="close" size={18} />
           </button>

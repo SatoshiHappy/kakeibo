@@ -6,6 +6,7 @@ import { Screen, TopBar } from '../components/Shell'
 import { ApiError } from '../lib/api'
 import { whenLabel, yen } from '../lib/format'
 import { useApiQuery } from '../lib/query'
+import { readFailure, type AiErrorKind } from '../lib/expenseForm'
 import { canContinue, groupPhotos, MAX_PHOTOS_PER_RECEIPT, type TrayPhoto } from '../lib/tray'
 import { addPhotos, photoUrl, removePhoto, sendTray, setContinued, TooManyPhotos, useTray } from '../lib/trayStore'
 
@@ -13,6 +14,7 @@ type Draft = {
   id: number
   uploadedAt: string
   read: 'reading' | 'timed_out' | 'read' | 'failed'
+  errorKind: AiErrorKind | null
   storeName: string | null
   printedTotal: number | null
   imageCount: number
@@ -175,14 +177,6 @@ function Drafts() {
 function DraftCard({ d }: { d: Draft }) {
   const when = `${whenLabel(d.uploadedAt)}${d.imageCount > 1 ? ` · ${d.imageCount} 枚` : ''}`
   const img = <img className="thumb-lg" src={`/api/receipts/${d.id}/images/1`} alt="" loading="lazy" />
-  if (d.read === 'reading')
-    return (
-      <div className="draft">
-        {img}
-        <span className="tag wait">読み取り中…</span>
-        <span className="when">{when}</span>
-      </div>
-    )
   return (
     <Link className="draft" to={`/receipts/${d.id}`}>
       {img}
@@ -192,9 +186,15 @@ function DraftCard({ d }: { d: Draft }) {
           <span className="dname">{d.storeName ?? '店名なし'}</span>
           {d.printedTotal !== null && <span className="num dname">{yen(d.printedTotal)}</span>}
         </>
+      ) : d.read === 'reading' ? (
+        <>
+          {/* 表 V の V2: 開くと「待たずに手で入力する」を選べる */}
+          <span className="tag wait">読み取り中…</span>
+          <span className="dname">開くと待たずに手で入力できます</span>
+        </>
       ) : (
         <>
-          <span className="tag ng">{d.read === 'timed_out' ? '読めなかった(時間切れ)' : '読めなかった'}</span>
+          <span className="tag ng">{readFailure(d.read, d.errorKind).tag}</span>
           <span className="dname">手で入力する</span>
         </>
       )}

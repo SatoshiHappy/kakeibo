@@ -211,7 +211,7 @@ describe('下書きを捨てる', () => {
 })
 
 describe('下書きの一覧(撮る画面。データと照合 §4.6)', () => {
-  type Draft = { id: number; read: string; storeName: string | null; printedTotal: number | null; imageCount: number }
+  type Draft = { id: number; read: string; errorKind: string | null; storeName: string | null; printedTotal: number | null; imageCount: number }
   const drafts = async () => (await (await get('/api/receipts')).json<{ drafts: Draft[] }>()).drafts
   it('読めた下書きは店名・印字の合計・写真の枚数を添え、読み取り中は店名と合計が null', async () => {
     const a = (await (await upload([jpeg(), jpeg()])).json<{ id: number }>()).id
@@ -220,6 +220,15 @@ describe('下書きの一覧(撮る画面。データと照合 §4.6)', () => {
     const list = await drafts()
     expect(list.find((d) => d.id === a)).toMatchObject({ read: 'read', storeName: 'テストストア', printedTotal: 216, imageCount: 2 })
     expect(list.find((d) => d.id === b)).toMatchObject({ read: 'reading', storeName: null, printedTotal: null, imageCount: 1 })
+  })
+  it('読めなかった下書きは種類(表 R の R4)を添え、読めた・読み取り中は null', async () => {
+    ai.doGenerate = textResult('これは JSON ではない')
+    const id = (await (await upload()).json<{ id: number }>()).id
+    await post(`/api/receipts/${id}/read`)
+    const waiting = (await (await upload()).json<{ id: number }>()).id
+    const list = await drafts()
+    expect(list.find((d) => d.id === id)).toMatchObject({ read: 'failed', errorKind: 'invalid_output' })
+    expect(list.find((d) => d.id === waiting)).toMatchObject({ read: 'reading', errorKind: null })
   })
   it('店名が空文字(読めなかった)なら null', async () => {
     ai.doGenerate = textResult(JSON.stringify({ ...goodRead, storeName: '', printedTotal: null }))

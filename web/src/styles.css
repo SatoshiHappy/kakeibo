@@ -189,7 +189,11 @@ ul.plain.drafts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)
 .adj { display: flex; justify-content: space-between; gap: 8px; min-height: 36px; align-items: center; padding: 0 12px; border-top: 1px solid var(--border); font-size: 12px; color: var(--muted); }
 .adjbtn { margin: 0 4px; font-size: 13px; }
 .adjedit { padding: 8px 12px; background: var(--hover); display: flex; flex-direction: column; gap: 8px; }
-.adjrow { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr) minmax(0, 1fr) auto; gap: 6px; align-items: end; }
+.adjrow { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr) minmax(0, 1.4fr) auto; gap: 6px; align-items: end; }
+.signed { display: flex; gap: 4px; }
+.signed input { flex: 1; min-width: 0; }
+.signbtn { flex: none; inline-size: var(--target-size); min-height: var(--target-size); border: 1px solid var(--border); border-radius: var(--r-sm); background: var(--bg); color: var(--fg); font-size: 18px; }
+.signbtn[aria-pressed="true"] { background: var(--fg); color: var(--bg); border-color: var(--fg); }
 .ferrs { margin: 0; padding: 8px 12px 8px 28px; border-radius: var(--r); background: var(--ng-bg); color: var(--danger); font-size: 13px; }
 .dangerbtn { color: var(--danger); }
 .pbtn.dangerfill { background: var(--danger); color: var(--bg); }
