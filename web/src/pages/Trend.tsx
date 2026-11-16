@@ -6,7 +6,7 @@ import { Screen, TopBar } from '../components/Shell'
 import { trend, type CategoryAmount, type TrendPoint } from '../lib/categories'
 import { currentMonth, monthLabel, yen } from '../lib/format'
 import { useApiQuery } from '../lib/query'
-import { axisTicks, manYen, monthBreakdown, monthRows, periodMonths, type NamedCategory } from '../lib/trend'
+import { axisTicks, extraLabel, manYen, monthBreakdown, monthRows, periodMonths, type NamedCategory } from '../lib/trend'
 
 const PERIODS = [6, 12, 24] as const
 type TrendResponse = { points: TrendPoint[]; lastMonth: CategoryAmount[]; categories: NamedCategory[] }
@@ -145,9 +145,9 @@ function TrendBody({ data, months, picked, onPick }: { data: TrendResponse; mont
   )
 }
 
-/** 臨時の印: 合計の上から点線を伸ばし、上に「臨時 ¥98千」の札 */
+/** 臨時の印: 合計の上から点線を伸ばし、上に「臨時 ¥9.8万」の札 */
 function ExtraMark({ cx, cy, amount }: { cx: number; cy: number; amount: number }) {
-  const label = `臨時 ${Math.abs(amount) >= 1000 ? `${amount < 0 ? '−' : ''}¥${Math.round(Math.abs(amount) / 1000)}千` : yen(amount)}`
+  const label = `臨時 ${extraLabel(amount)}`
   return (
     <g aria-hidden="true">
       <line x1={cx} x2={cx} y1={cy - 4} y2={22} style={{ stroke: 'var(--c9)', strokeWidth: 1.5, strokeDasharray: '2 2' }} />

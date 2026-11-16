@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { axisTicks, manYen, monthBreakdown, monthRows, periodMonths, totalsByKind } from './trend'
+import { axisTicks, extraLabel, manYen, monthBreakdown, monthRows, periodMonths, totalsByKind } from './trend'
 
 const p = (month: string, categoryId: number, kind: string, amount: number) => ({ month, categoryId, kind, amount })
 
@@ -52,10 +52,18 @@ describe('推移の縦軸の目盛り', () => {
     expect(axisTicks(30_000)).toEqual([0, 10_000, 20_000, 30_000])
     expect(axisTicks(30_001)).toEqual([0, 20_000, 40_000])
   })
-  it('字は 1 万円の倍なら「5万」、ほかは「5千」', () => {
+  it('目盛りの字は万の単位で小数 1 桁まで(千の単位は使わない)', () => {
     expect(manYen(0)).toBe('0')
     expect(manYen(50_000)).toBe('5万')
     expect(manYen(150_000)).toBe('15万')
-    expect(manYen(2000)).toBe('2千')
+    expect(manYen(2000)).toBe('0.2万')
+  })
+  it('臨時の札は 1 万円以上なら「¥9.8万」(.0 は省く)、それより下は円のまま。境は 9,999・10,000', () => {
+    expect(extraLabel(98_000)).toBe('¥9.8万')
+    expect(extraLabel(100_000)).toBe('¥10万')
+    expect(extraLabel(10_000)).toBe('¥1万')
+    expect(extraLabel(9_999)).toBe('¥9,999')
+    expect(extraLabel(123_456)).toBe('¥12.3万')
+    expect(extraLabel(-50_000)).toBe('−¥5万')
   })
 })

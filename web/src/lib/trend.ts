@@ -43,5 +43,12 @@ export function axisTicks(max: number): number[] {
   return Array.from({ length: n + 1 }, (_, i) => i * step)
 }
 
-/** 目盛りの字: 1 万円より上は「5万」、下は「5千」 */
-export const manYen = (v: number) => (v === 0 ? '0' : v % 10_000 === 0 ? `${v / 10_000}万` : `${v / 1000}千`)
+/** 目盛りの字: 万の単位で小数 1 桁まで(「5万」「0.5万」。千の単位は使わない = 2026-11-17 ユーザー指示) */
+export const manYen = (v: number) => (v === 0 ? '0' : `${Number((v / 10_000).toFixed(1))}万`)
+
+/** 臨時の札の額: 1 万円以上は「¥9.8万」(小数 1 桁。.0 は省く)、それより下は「¥3,500」 */
+export const extraLabel = (amount: number) => {
+  const sign = amount < 0 ? '−' : ''
+  const a = Math.abs(amount)
+  return a >= 10_000 ? `${sign}¥${Number((a / 10_000).toFixed(1))}万` : `${sign}¥${a.toLocaleString('en-US')}`
+}
