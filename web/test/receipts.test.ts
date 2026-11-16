@@ -18,7 +18,7 @@ const goodRead = {
   storeName: 'テストストア',
   purchasedOn: '2026-11-10',
   paymentMethod: 'rakuten_card',
-  items: [{ name: '牛乳', baseAmount: 200, taxRate: 8, categoryId: 1 }],
+  items: [{ name: '牛乳', baseAmount: 200, taxRate: 8, categoryId: 1, stockItemId: null, stockQuantity: null }],
   adjustments: [{ kind: 'tax', amount: 16, taxRate: 8 }],
   printedTotal: 216,
 }
@@ -59,7 +59,7 @@ const get = (path: string) => request(path, { headers: auth() })
 const post = (path: string) => request(path, { method: 'POST', headers: auth() })
 
 describe('画像を送る', () => {
-  it('D1 に行が入り R2 に置かれ、stored_at が入る(読み取り待ち)', async () => {
+  it('D1 に行が入り画像の置き場(バケット)に置かれ、stored_at が入る(読み取り待ち)', async () => {
     const res = await upload([jpeg(), jpeg()])
     expect(res.status).toBe(201)
     const { id } = await res.json<{ id: number }>()
@@ -71,7 +71,24 @@ describe('画像を送る', () => {
     ])
     const img = await get(`/api/receipts/${id}/images/1`)
     expect(img.status).toBe(200)
-    expect(img.headers.get('cache-control')).toContain('private')
+    expect(img.headers.get('cache-control')).toBe('private, no-cache')
+    const etag = img.headers.get('etag')!
+    expect(etag).toBeTruthy()
+    await img.arrayBuffer()
+    const again = await request(`/api/receipts/${id}/images/1`, { headers: { ...auth(), 'if-none-match': etag } })
+    expect(again.status).toBe(304)
+  })
+  it('同じ id で作り直したレシートの写真は、前の写真の ETag では 304 にならない', async () => {
+    const { id } = await (await upload([jpeg()])).json<{ id: number }>()
+    const first = await get(`/api/receipts/${id}/images/1`)
+    const etag = first.headers.get('etag')!
+    await first.arrayBuffer()
+    expect((await request(`/api/receipts/${id}`, { method: 'DELETE', headers: auth() })).status).toBe(204)
+    const { id: again } = await (await upload([new File([new Uint8Array([0xff, 0xd8, 0xff, 9, 9])], 'b.jpg', { type: 'image/jpeg' })])).json<{ id: number }>()
+    expect(again).toBe(id)
+    const res = await request(`/api/receipts/${again}/images/1`, { headers: { ...auth(), 'if-none-match': etag } })
+    expect(res.status).toBe(200)
+    expect(res.headers.get('etag')).not.toBe(etag)
   })
   it('同じ送信の ID の送り直しは下書きを増やさない', async () => {
     const a = await (await upload([jpeg()], 'same')).json<{ id: number }>()
@@ -126,6 +143,31 @@ describe('読み取り', () => {
     const body = await (await post(`/api/receipts/${id}/read`)).json<{ errorKind: string }>()
     expect(body.errorKind).toBe('invalid_output')
   })
+  it('在庫の品物: 渡した一覧(やめていない品物)に当たれば残す。無い品物・返品の品目は外し、個数が無ければ 1', async () => {
+    const at = '2026-11-01T00:00:00Z'
+    const user = (await env.DB.prepare("SELECT id FROM users WHERE email = 'alice@example.com'").first<{ id: number }>())!.id
+    const live = (await env.DB.prepare('INSERT INTO stock_items (name, notify_days, created_by, created_at) VALUES (?, 7, ?, ?)').bind(`洗剤-${++seq}`, user, at).run()).meta.last_row_id
+    const retired = (
+      await env.DB.prepare('INSERT INTO stock_items (name, notify_days, retired_at, created_by, created_at) VALUES (?, 7, ?, ?, ?)').bind(`古い-${++seq}`, at, user, at).run()
+    ).meta.last_row_id
+    let prompt = ''
+    const items = [
+      { name: '洗剤', baseAmount: 300, taxRate: 10, categoryId: 1, stockItemId: live, stockQuantity: 2 },
+      { name: '洗剤 2', baseAmount: 300, taxRate: 10, categoryId: 1, stockItemId: live, stockQuantity: null },
+      { name: '返品', baseAmount: -300, taxRate: 10, categoryId: 1, stockItemId: live, stockQuantity: 1 },
+      { name: '古い', baseAmount: 100, taxRate: 10, categoryId: 1, stockItemId: retired, stockQuantity: 1 },
+    ]
+    ai.doGenerate = async (opts: { prompt: { content: { type: string; text?: string }[] }[] }) => {
+      prompt = JSON.stringify(opts.prompt)
+      return textResult(JSON.stringify({ ...goodRead, items }))
+    }
+    const { id } = await (await upload()).json<{ id: number }>()
+    const body = await (await post(`/api/receipts/${id}/read`)).json<{ read: string; result: { items: { stockItemId: number | null; stockQuantity: number | null }[] } }>()
+    expect(body.read).toBe('read')
+    expect(body.result.items.map((i) => [i.stockItemId, i.stockQuantity])).toEqual([[live, 2], [live, 1], [null, null], [null, null]])
+    expect(prompt).toContain(`${live}: 洗剤-`)
+    expect(prompt).not.toContain(`${retired}: 古い-`)
+  })
   it('429 はクレジット切れ(quota)', async () => {
     ai.doGenerate = async () => {
       throw new APICallError({ message: 'rate', url: 'x', requestBodyValues: {}, statusCode: 429, isRetryable: false })
@@ -146,18 +188,19 @@ describe('読み取り', () => {
   })
   it('前の回の遅れた応答は書かない', async () => {
     const { id } = await (await upload()).json<{ id: number }>()
-    // 回 1 の読み取り中に、別の人が時間切れの後で読み直して回 2 にした状態を作る
-    await env.DB.prepare("UPDATE receipts SET ai_attempt = 2 WHERE id = ?").bind(id).run()
-    await env.DB.prepare(
-      "UPDATE receipts SET ai_status = 'read', ai_result = '{}' WHERE id = ? AND ai_attempt = 1 AND ai_status = 'waiting'",
-    ).bind(id).run()
-    const row = await env.DB.prepare('SELECT ai_status FROM receipts WHERE id = ?').bind(id).first<{ ai_status: string }>()
-    expect(row!.ai_status).toBe('waiting')
+    // 回 1 の読み取りの応答が届く前に、別の人が時間切れの後で読み直して回 2 にした状態を、AI の応答の中で作る
+    ai.doGenerate = async () => {
+      await env.DB.prepare('UPDATE receipts SET ai_attempt = 2 WHERE id = ?').bind(id).run()
+      return textResult(JSON.stringify(goodRead))
+    }
+    expect((await post(`/api/receipts/${id}/read`)).status).toBe(200)
+    const row = await env.DB.prepare('SELECT ai_status, ai_result FROM receipts WHERE id = ?').bind(id).first<{ ai_status: string; ai_result: string | null }>()
+    expect(row).toEqual({ ai_status: 'waiting', ai_result: null })
   })
 })
 
 describe('下書きを捨てる', () => {
-  it('R2 の画像と行が消える', async () => {
+  it('置き場(バケット)の画像と行が消える', async () => {
     const { id } = await (await upload()).json<{ id: number }>()
     const key = (await env.DB.prepare('SELECT r2_key FROM receipt_images WHERE receipt_id = ?').bind(id).first<{ r2_key: string }>())!.r2_key
     const res = await request(`/api/receipts/${id}`, { method: 'DELETE', headers: auth() })

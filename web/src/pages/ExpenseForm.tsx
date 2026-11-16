@@ -15,6 +15,7 @@ import {
   totalLine,
   totals,
   uncategorizedId,
+  usableStored,
   type AdjustmentDraft,
   type ExpenseDraft,
   type FormResponse,
@@ -81,7 +82,20 @@ function ExpenseFormPage({ mode }: { mode: Mode }) {
     refetchInterval: (query) => (query.state.data?.receipt?.read === 'reading' && !manual ? POLL_MS : false),
   })
   const stored = useStoredDraft(storeKey(mode))
-  const start = q.data ? startOf(mode, q.data, undefined, manual) : null
+  // 初めの値は、画面を開いた後に取った応答だけで作る(端末に残った古い応答から作ると、保存で前の直しを巻き戻す)
+  const fresh = q.data !== undefined && q.isFetchedAfterMount
+  const start = fresh ? startOf(mode, q.data!, undefined, manual) : null
+  // 読めなかった・手で入力する(V3)で入力を始めた後に読み取りが終わっても、入力を置き換えない。入れ替えるかは人が選ぶ
+  const [held, setHeld] = useState(false)
+  const [replaced, setReplaced] = useState(false)
+  // 行が変わった描画のうちに直す(React の「前の描画の値を覚える」形。effect で直すと 1 回古い形で描く)
+  const [seenRow, setSeenRow] = useState<string | undefined>(undefined)
+  if (start?.row !== seenRow) {
+    setSeenRow(start?.row)
+    if (start?.row === 'V3') setHeld(true)
+    // 読み取り中(V2)は入力を出していないので、守る入力も無い(「読み直す」を押した後など)
+    if (start?.row === 'V2') setHeld(false)
+  }
 
   const redirect = start?.row === 'V4' ? start.to : null
   useEffect(() => {
@@ -113,14 +127,25 @@ function ExpenseFormPage({ mode }: { mode: Mode }) {
         </button>
       </>,
     )
+  const keepV3 = held && start.row === 'V1'
+  const row = keepV3 ? 'V3' : start.row
+  const usable = replaced ? null : usableStored(start.row, stored, data.expense)
   return (
     <Editor
-      key={`${storeKey(mode)}:${start.row}`}
+      key={`${storeKey(mode)}:${row}`}
       mode={mode}
       data={data}
-      row={start.row}
-      initial={stored ?? start.draft}
-      restored={stored !== null}
+      row={row}
+      initial={usable ?? start.draft}
+      restored={usable !== null}
+      onUseAi={
+        keepV3
+          ? () => {
+              setReplaced(true)
+              setHeld(false)
+            }
+          : undefined
+      }
       title={title}
       back={back}
     />
@@ -140,6 +165,8 @@ function errorText(e: unknown): string {
       return '使えない在庫の品物があります。選び直してください。'
     case 'invalid_payment_method':
       return '支払いを選び直してください。'
+    case 'future_date':
+      return '日付が今日より後です。買った日を入れてください。'
     case 'receipt_already_saved':
       return 'このレシートはもう支出に保存されています。'
     case 'not_found':
@@ -150,7 +177,17 @@ function errorText(e: unknown): string {
   }
 }
 
-function Editor(props: { mode: Mode; data: FormResponse; row: 'V1' | 'V3' | 'V5' | 'V6'; initial: ExpenseDraft; restored: boolean; title: string; back: Back }) {
+function Editor(props: {
+  mode: Mode
+  data: FormResponse
+  row: 'V1' | 'V3' | 'V5' | 'V6'
+  initial: ExpenseDraft
+  restored: boolean
+  /** V3 で入力中に読み取りが終わった。押すと AI の結果で入れ直す */
+  onUseAi?: () => void
+  title: string
+  back: Back
+}) {
   const { mode, data, row, title, back } = props
   const navigate = useNavigate()
   const [draft, setDraft] = useState(props.initial)
@@ -182,7 +219,13 @@ function Editor(props: { mode: Mode; data: FormResponse; row: 'V1' | 'V3' | 'V5'
       if (!b.ok) throw new FormErrors(b.errors)
       if (mode.kind === 'expense') return api.request(`/api/expenses/${mode.expenseId}`, { method: 'PUT', json: b.body })
       const receiptId = mode.kind === 'receipt' ? mode.receiptId : null
-      return api.request('/api/expenses', { method: 'POST', json: { ...b.body, clientRequestId: draft.clientRequestId, receiptId } })
+      const r = await api.request<{ id: number; reused?: boolean }>('/api/expenses', {
+        method: 'POST',
+        json: { ...b.body, clientRequestId: draft.clientRequestId, receiptId },
+      })
+      // 前に押した保存が届いていた(応答だけ落ちた)。その後に直した入力を捨てないよう、今の入力で直す
+      if (r.reused) await api.request(`/api/expenses/${r.id}`, { method: 'PUT', json: b.body })
+      return r
     },
     onMutate: () => setErrors([]),
     onSuccess: leave,
@@ -250,6 +293,14 @@ function Editor(props: { mode: Mode; data: FormResponse; row: 'V1' | 'V3' | 'V5'
         </Photos>
       )}
       {props.restored && <p className="note">前に入れていた内容を戻しました。</p>}
+      {props.onUseAi && (
+        <p className="note" role="status">
+          AI の読み取りが終わりました。入力はそのままです。{' '}
+          <button className="textbtn" type="button" onClick={props.onUseAi}>
+            AI の結果に入れ替える
+          </button>
+        </p>
+      )}
 
       <div className="panel">
         <label className="frow">

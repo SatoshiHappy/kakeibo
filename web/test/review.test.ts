@@ -139,7 +139,7 @@ describe('表 A-3(差あり)', () => {
       spentOn: day(10),
       storeName: '店',
       paymentMethod: 'rakuten_card',
-      items: [{ name: 'x', categoryId: 1, taxRate: null, baseAmount: 1002 }],
+      items: [{ name: 'x', categoryId: 1, taxRate: null, baseAmount: 1002, stockItemId: null, stockQuantity: null }],
       adjustments: [],
     })
     expect(await list()).toEqual([expect.objectContaining({ type: 'diff', diff: -1 })])
@@ -184,7 +184,7 @@ async function editExpense(id: number, spentOn: string, amount: number, paymentM
     spentOn,
     storeName: '店',
     paymentMethod,
-    items: [{ name: 'x', categoryId: 1, taxRate: null, baseAmount: amount }],
+    items: [{ name: 'x', categoryId: 1, taxRate: null, baseAmount: amount, stockItemId: null, stockQuantity: null }],
     adjustments: [],
   })
   expect(res.status).toBe(200)

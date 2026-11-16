@@ -84,7 +84,7 @@ function AuthBar() {
   return (
     <div className="authbar" role="alert">
       <span>ログインを確かめられません。表示は前の内容です。</span>
-      <button className="textbtn" type="button" onClick={() => api.relogin()}>
+      <button className="textbtn" type="button" onClick={() => void api.relogin()}>
         ログインし直す
       </button>
     </div>

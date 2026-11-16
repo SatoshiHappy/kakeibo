@@ -47,7 +47,8 @@ export function createApi(deps: ApiDeps) {
     for (const l of listeners) l(s)
   }
 
-  async function goToLogin() {
+  /** 登録された下書きの保存を全部終えてから再読み込みする(K2 と K3 の「ログインし直す」の共通の道) */
+  async function saveDraftsAndReload(flag: boolean) {
     if (reloading) return // 同時に複数の 401 が来ても、再読み込みは 1 回だけ
     reloading = true
     const results = await Promise.allSettled([...draftSavers].map((save) => save()))
@@ -55,9 +56,11 @@ export function createApi(deps: ApiDeps) {
       // 下書きを残せなくてもログインには進む(残せなかったことは記録する)
       if (r.status === 'rejected') console.error('draft_save_failed', r.reason instanceof Error ? r.reason.name : 'unknown')
     }
-    deps.storage.setItem(RELOAD_FLAG, '1')
+    if (flag) deps.storage.setItem(RELOAD_FLAG, '1')
+    else deps.storage.removeItem(RELOAD_FLAG)
     deps.reload()
   }
+  const goToLogin = () => saveDraftsAndReload(true)
 
   async function request<T>(path: string, opts: RequestOptions = {}): Promise<T> {
     const headers: Record<string, string> = { 'X-Requested-With': 'XMLHttpRequest' }
@@ -102,11 +105,8 @@ export function createApi(deps: ApiDeps) {
       return () => listeners.delete(listener)
     },
     authState: () => state,
-    /** K3 の「ログインし直す」 */
-    relogin() {
-      deps.storage.removeItem(RELOAD_FLAG)
-      deps.reload()
-    },
+    /** K3 の「ログインし直す」: 印を消し、K2 と同じく下書きを残してから再読み込みする */
+    relogin: () => saveDraftsAndReload(false),
   }
 }
 

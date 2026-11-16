@@ -3,7 +3,7 @@ import { useSyncExternalStore } from 'react'
 import { get, set } from 'idb-keyval'
 import { shrinkToJpeg } from './photo'
 import { api, refetchAfterSave } from './query'
-import { groupPhotos, requestIdOf, type TrayPhoto } from './tray'
+import { groupPhotos, MAX_PHOTOS_PER_RECEIPT, requestIdOf, type TrayPhoto } from './tray'
 
 const KEY = 'kakeibo-tray'
 
@@ -63,13 +63,28 @@ export function useTray(): State {
   return useSyncExternalStore(subscribe, () => state)
 }
 
+// 縮めている途中の写真。401 の再読み込みの前に、縮め終えて端末に書き終わるのを待つ(基盤 §3.2・表 K の K2)
+const adding = new Set<Promise<void>>()
+api.registerDraftSaver(async () => {
+  await Promise.allSettled([...adding])
+  await writing
+})
+
 /** 撮った・選んだ写真を縮めて並びの末尾に足す */
-export async function addPhotos(files: File[]) {
-  await load()
-  const added: TrayPhoto[] = []
-  for (const f of files) added.push({ id: crypto.randomUUID(), blob: await shrinkToJpeg(f), cont: false })
-  await update([...state.photos, ...added])
+export function addPhotos(files: File[]): Promise<void> {
+  const work = (async () => {
+    await load()
+    const added: TrayPhoto[] = []
+    for (const f of files) added.push({ id: crypto.randomUUID(), blob: await shrinkToJpeg(f), cont: false })
+    await update([...state.photos, ...added])
+  })()
+  adding.add(work)
+  void work.finally(() => adding.delete(work)).catch(() => undefined)
+  return work
 }
+
+/** 1 枚のレシートの写真が上限を超えている(写真を消して続きがつながったときなど) */
+export class TooManyPhotos extends Error {}
 
 export const removePhoto = (id: string) => update(state.photos.filter((p) => p.id !== id))
 export const setContinued = (id: string, cont: boolean) => update(state.photos.map((p) => (p.id === id ? { ...p, cont } : p)))
@@ -82,6 +97,7 @@ const refetchDrafts = () => refetchAfterSave({ predicate: (q) => q.queryKey[0] =
  */
 export async function sendTray(onProgress: (done: number, total: number) => void) {
   const groups = groupPhotos(state.photos)
+  if (groups.some((g) => g.length > MAX_PHOTOS_PER_RECEIPT)) throw new TooManyPhotos()
   onProgress(0, groups.length)
   for (const [n, group] of groups.entries()) {
     const form = new FormData()

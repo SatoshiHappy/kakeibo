@@ -1,4 +1,5 @@
 // 費目・予算・集計の口
+import { jstDate } from '../worker/time'
 import { env } from 'cloudflare:workers'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { accessToken, addUser, request, serveTestCerts } from './helpers'
@@ -144,26 +145,26 @@ describe('集計と予算', () => {
     expect(body.categories.find((c) => c.id === 14)).toEqual({ id: 14, name: '旅行', kind: 'extra' })
   })
   it('12 月の集計と推移は翌年の 1/1 を含まない(境の前後)', async () => {
-    await expense('2026-11-30', [[14, 1]])
-    await expense('2026-12-01', [[14, 10]])
-    await expense('2026-12-31', [[14, 100]])
-    await expense('2027-01-01', [[14, 1000]])
-    const dec = await (await get('/api/summary?month=2026-12')).json<{ categories: { categoryId: number; kind: string; amount: number }[] }>()
+    await expense('2024-11-30', [[14, 1]])
+    await expense('2024-12-01', [[14, 10]])
+    await expense('2024-12-31', [[14, 100]])
+    await expense('2025-01-01', [[14, 1000]])
+    const dec = await (await get('/api/summary?month=2024-12')).json<{ categories: { categoryId: number; kind: string; amount: number }[] }>()
     expect(dec.categories.find((c) => c.categoryId === 14)).toMatchObject({ kind: 'extra', amount: 110 })
-    const { points } = await (await get('/api/summary/trend?from=2026-12&to=2026-12')).json<{ points: { amount: number }[] }>()
+    const { points } = await (await get('/api/summary/trend?from=2024-12&to=2024-12')).json<{ points: { amount: number }[] }>()
     expect(points.map((p) => p.amount)).toEqual([110])
   })
   it('読めない月は 400', async () => {
-    expect((await get('/api/summary?month=2026-13')).status).toBe(400)
+    expect((await get('/api/summary?month=2024-13')).status).toBe(400)
   })
   it('費目ごとの総計: 年はその年の 1/1〜12/31(境の前後)、渡さなければ通算', async () => {
-    await expense('2025-12-31', [[14, 100]])
-    await expense('2026-01-01', [[14, 1000], [1, 50]])
-    await expense('2026-12-31', [[14, 2000]])
-    await expense('2027-01-01', [[14, 4000]])
+    await expense('2023-12-31', [[14, 100]])
+    await expense('2024-01-01', [[14, 1000], [1, 50]])
+    await expense('2024-12-31', [[14, 2000]])
+    await expense('2025-01-01', [[14, 4000]])
     type T = { year: number | null; categories: { categoryId: number; kind: string; amount: number }[] }
-    const y = await (await get('/api/summary/totals?year=2026')).json<T>()
-    expect(y.year).toBe(2026)
+    const y = await (await get('/api/summary/totals?year=2024')).json<T>()
+    expect(y.year).toBe(2024)
     expect(y.categories.find((c) => c.categoryId === 14)).toMatchObject({ kind: 'extra', amount: 3000 })
     expect(y.categories.find((c) => c.categoryId === 1)).toMatchObject({ amount: 50 })
     const all = await (await get('/api/summary/totals')).json<T>()
@@ -192,17 +193,29 @@ describe('集計と予算', () => {
 
 describe('費目と予算の画面の口(データと照合 §4.11)', () => {
   type Prefs = { month: string; categories: { id: number; name: string; kind: string; retired: boolean; systemRole: string | null; budget: number | null }[] }
-  it('やめた費目も返し、その月に効く予算を添える(やめた費目の予算は null)', async () => {
+  it('やめた費目も返し、その月に効く予算を添える(やめると、やめた月から予算なし。前の月は当時の予算のまま)', async () => {
+    const thisMonth = jstDate().slice(0, 7)
+    const prev = new Date(Date.parse(`${thisMonth}-01T00:00:00Z`) - 86_400_000).toISOString().slice(0, 7)
     await request('/api/budgets', json('PUT', { categoryId: 1, fromMonth: '2026-08', amount: 30000 }))
-    await request('/api/budgets', json('PUT', { categoryId: 1, fromMonth: '2026-12', amount: 40000 }))
+    await request('/api/budgets', json('PUT', { categoryId: 1, fromMonth: '2099-12', amount: 40000 }))
     await request('/api/budgets', json('PUT', { categoryId: 12, fromMonth: '2026-08', amount: 5000 }))
-    await db.prepare('UPDATE categories SET retired_at = ? WHERE id = 12').bind('2026-11-01T00:00:00Z').run()
+    expect((await request('/api/categories/12', json('PATCH', { retired: true }))).status).toBe(200)
     try {
-      const p = await (await get('/api/prefs?month=2026-11')).json<Prefs>()
-      expect(p.month).toBe('2026-11')
+      const p = await (await get(`/api/prefs?month=${thisMonth}`)).json<Prefs>()
+      expect(p.month).toBe(thisMonth)
       expect(p.categories.find((c) => c.id === 1)).toMatchObject({ name: '食費', kind: 'variable', retired: false, budget: 30000 })
       expect(p.categories.find((c) => c.id === 12)).toMatchObject({ retired: true, budget: null })
       expect(p.categories.find((c) => c.systemRole === 'uncategorized')).toMatchObject({ name: '未分類', budget: null })
+      // 前の月: やめた費目の予算は当時のまま。その月に使っていなくても、月の集計に予算つきで残る(予算の計が後から変わらない)
+      expect((await (await get(`/api/prefs?month=${prev}`)).json<Prefs>()).categories.find((c) => c.id === 12)).toMatchObject({ budget: 5000 })
+      type S = { categories: { categoryId: number; amount: number; budget: number | null }[] }
+      const past = await (await get(`/api/summary?month=${prev}`)).json<S>()
+      expect(past.categories.find((c) => c.categoryId === 12)).toMatchObject({ amount: 0, budget: 5000 })
+      const now = await (await get(`/api/summary?month=${thisMonth}`)).json<S>()
+      expect(now.categories.find((c) => c.categoryId === 12)).toBeUndefined()
+      // 戻しても予算は戻らない(入れ直す)
+      await request('/api/categories/12', json('PATCH', { retired: false }))
+      expect((await (await get(`/api/prefs?month=${thisMonth}`)).json<Prefs>()).categories.find((c) => c.id === 12)).toMatchObject({ budget: null })
       expect((await get('/api/prefs?month=2026-13')).status).toBe(400)
     } finally {
       await db.prepare('UPDATE categories SET retired_at = NULL WHERE id = 12').run()

@@ -78,7 +78,7 @@ function buildServer(call: ReturnType<typeof caller>) {
     {
       description:
         '支出を 1 件足す(レシート画像は付かない)。品目ごとに費目を付ける。照合の規則は画面と同じに掛かる。clientRequestId が同じ要求は 1 件にしかならないので、送り直すときは同じ値を使う。',
-      inputSchema: { ...expenseFields, clientRequestId: createBody.shape.clientRequestId },
+      inputSchema: createBody.omit({ receiptId: true }).shape,
     },
     (args) => call('/expenses', { method: 'POST', json: { ...args, receiptId: null } }),
   )

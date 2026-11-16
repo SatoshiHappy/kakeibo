@@ -2,6 +2,8 @@
 // 手元の Worker・D1 と開発用のログイン(dev/access-plugin.ts)で動く。初回は npm run dev:setup が要る
 import { defineConfig } from '@playwright/test'
 
+// 開発サーバーのポート(DEV_PORT。dev/access-plugin.ts と同じ既定)
+const port = Number(process.env.DEV_PORT ?? 5173)
 const phone = { browserName: 'webkit' as const, deviceScaleFactor: 3, isMobile: true, hasTouch: true, locale: 'ja-JP' }
 
 export default defineConfig({
@@ -14,8 +16,8 @@ export default defineConfig({
   expect: { timeout: 15_000 },
   // 同じ理由で、いくつもの画面を通る流れは既定の 30 秒を超えることがある
   timeout: 90_000,
-  use: { baseURL: 'http://127.0.0.1:5173' },
-  webServer: { command: 'npm run dev', url: 'http://127.0.0.1:5173', reuseExistingServer: true, timeout: 120_000 },
+  use: { baseURL: `http://127.0.0.1:${port}` },
+  webServer: { command: 'npm run dev', url: `http://127.0.0.1:${port}`, reuseExistingServer: true, timeout: 120_000 },
   projects: [
     { name: 'iphone-17e-390', use: { ...phone, viewport: { width: 390, height: 844 } } },
     { name: 'iphone-17-402', use: { ...phone, viewport: { width: 402, height: 874 } } },

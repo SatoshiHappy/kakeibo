@@ -20,6 +20,8 @@ const MARK: Record<string, { icon: IconName; cls: string } | undefined> = {
   W3: { icon: 'ok', cls: 'st-ok' },
   W4: { icon: 'alert', cls: 'st-warn' },
   W5: { icon: 'doc', cls: 'st-wait' },
+  W6: { icon: 'ok', cls: 'st-wait' },
+  W7: { icon: 'ok', cls: 'st-wait' },
 }
 
 export function List() {

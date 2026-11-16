@@ -68,6 +68,12 @@ describe('止める(C1〜C9)', () => {
   it('C6 手数料が整数でない', () => {
     expect(parseStatementCsv(enc(`${HEADER}\n${row('2026/10/11', 'A', '1', 'x')}\n`), TODAY)).toMatchObject({ ok: false, check: 'C6' })
   })
+  it('C4〜C6 は表の順に全部の行へ掛ける: 1 行目が C6・2 行目が C4 なら C4', () => {
+    const csv = `${HEADER}\n${row('2026/10/11', 'A', '1', 'x')}\n${row('2026/13/01', 'B', '1')}\n`
+    expect(parseStatementCsv(enc(csv), TODAY)).toMatchObject({ ok: false, check: 'C4' })
+    const c5 = `${HEADER}\n${row('2026/10/11', 'A', '1', 'x')}\n${row('2026/10/11', 'B', '1.5')}\n`
+    expect(parseStatementCsv(enc(c5), TODAY)).toMatchObject({ ok: false, check: 'C5' })
+  })
   it('C7 利用金額が - でない行が無い(データの行が無いときも)', () => {
     expect(parseStatementCsv(enc(`${HEADER}\n`), TODAY)).toMatchObject({ ok: false, check: 'C7' })
     expect(parseStatementCsv(enc(`${HEADER}\n${row('2026/10/11', 'A', '-', '10')}\n`), TODAY)).toMatchObject({ ok: false, check: 'C7' })

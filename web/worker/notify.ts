@@ -17,9 +17,12 @@ function vapidKeys(env: Bindings): VapidKeys {
   return { publicKey, privateKey, subject }
 }
 
-function line(item: StockOverviewItem) {
+/** 通知の本文の 1 行(品物 1 つ) */
+export function alertLine(item: Pick<StockOverviewItem, 'name' | 'status'>) {
   const f = item.status!.forecast
-  return f === null ? `${item.name}(残り 0)` : `${item.name}(あと${f.daysLeft}日)`
+  if (f === null) return `${item.name}(残り 0)`
+  // 画面の文言(src/lib/stock.ts)と同じ: 負は「なくなる日を過ぎた」
+  return f.daysLeft < 0 ? `${item.name}(なくなる日を過ぎた)` : `${item.name}(あと${f.daysLeft}日)`
 }
 
 /** 表 N。書いてから送る(同じ判定が 2 回走っても 2 通にならない) */
@@ -41,7 +44,7 @@ export async function runStockAlerts(env: Bindings, now: Date): Promise<AlertRun
   run.alerted = toSend.map((i) => i.id)
   if (toSend.length === 0) return run
 
-  const data = { title: 'そろそろ買う', body: toSend.map(line).join('・'), url: '/stock' }
+  const data = { title: 'そろそろ買う', body: toSend.map(alertLine).join('・'), url: '/stock' }
   const { results: subs } = await db
     .prepare('SELECT id, endpoint, p256dh, auth FROM push_subscriptions ORDER BY id')
     .all<{ id: number; endpoint: string; p256dh: string; auth: string }>()

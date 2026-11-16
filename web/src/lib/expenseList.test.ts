@@ -17,6 +17,8 @@ const e = (over: Partial<ListExpense>): ListExpense => ({
   amount: 100,
   chargeCount: 0,
   diff: null,
+  noStatementAcked: false,
+  acceptedDiff: null,
   categoryIds: [1],
   ...over,
 })
@@ -41,6 +43,16 @@ describe('表 W 一覧の行の印', () => {
     expect(rowMark(e({ origin: 'statement_purchase', chargeCount: 1, diff: 0, paymentMethod: 'rakuten_card' }), methods)).toEqual({ row: 'W5', label: '明細から' })
     expect(rowMark(e({ origin: 'statement_fee', chargeCount: 1, diff: 0 }), methods).row).toBe('W5')
   })
+  it('W6: 明細に載るはずで結ばれていないが、「明細に無い」を確認済みなら確認済み(明細待ちに数えない)', () => {
+    const acked = e({ paymentMethod: 'rakuten_card', noStatementAcked: true })
+    expect(rowMark(acked, methods)).toEqual({ row: 'W6', label: '確認済み(明細なし)' })
+    // 明細に載らない支払いは確認の有無によらず印なし(W2)
+    expect(rowMark(e({ paymentMethod: 'cash', noStatementAcked: true }), methods).row).toBe('W2')
+  })
+  it('W7: 差を「このまま」にした額と今の差が同じなら差を確認済み。差が変わると W4 に戻る', () => {
+    expect(rowMark(e({ chargeCount: 1, diff: -20, acceptedDiff: -20, paymentMethod: 'rakuten_card' }), methods)).toEqual({ row: 'W7', label: '差を確認済み' })
+    expect(rowMark(e({ chargeCount: 1, diff: -30, acceptedDiff: -20, paymentMethod: 'rakuten_card' }), methods).row).toBe('W4')
+  })
 })
 
 describe('絞り込み', () => {
@@ -53,12 +65,13 @@ describe('絞り込み', () => {
     ],
     paymentMethods: methods,
   }
-  it('固定費・未分類は品目の費目のどれかが当たれば。明細待ちは W1', () => {
+  it('固定費・未分類は品目の費目のどれかが当たれば。明細待ちは W1 だけ(W6 は数えない)', () => {
     expect(matches('fixed', e({ categoryIds: [1, 4] }), data)).toBe(true)
     expect(matches('fixed', e({ categoryIds: [1] }), data)).toBe(false)
     expect(matches('uncategorized', e({ categoryIds: [19] }), data)).toBe(true)
     expect(matches('waiting', e({ paymentMethod: 'rakuten_card' }), data)).toBe(true)
     expect(matches('waiting', e({ paymentMethod: 'cash' }), data)).toBe(false)
+    expect(matches('waiting', e({ paymentMethod: 'rakuten_card', noStatementAcked: true }), data)).toBe(false)
     expect(matches('all', e({}), data)).toBe(true)
   })
 })

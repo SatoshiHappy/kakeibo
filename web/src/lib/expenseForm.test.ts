@@ -10,6 +10,7 @@ import {
   type ExpenseDraft,
   type FormResponse,
   type ReceiptDetail,
+  usableStored,
 } from './expenseForm'
 
 const NOW = new Date('2026-11-16T10:00:00Z')
@@ -64,11 +65,32 @@ describe('表 V 確かめて保存の画面の始まり', () => {
     ])
     expect(s.draft.adjustments.map((a) => [a.kind, a.amount, a.taxRate])).toEqual([['tax', '19', 8]])
   })
-  it('V1: 日付が読めなければ撮った日(日本時間)。知らない支払いのコードは選ばない', () => {
+  it('V1: AI が当てた在庫の品物は、今も使える品物なら個数と入れる(やめた・無い品物・前の形の結果は「なし」)', () => {
+    const stockItems = [
+      { id: 4, name: '洗剤', retired: false },
+      { id: 5, name: '古い', retired: true },
+    ]
+    const result: AiRead = {
+      ...ai,
+      items: [
+        { name: '洗剤', baseAmount: 300, taxRate: 10, categoryId: 1, stockItemId: 4, stockQuantity: 2 },
+        { name: '古い', baseAmount: 100, taxRate: 10, categoryId: 1, stockItemId: 5, stockQuantity: 1 },
+        { name: '前の形', baseAmount: 100, taxRate: 10, categoryId: 1 },
+      ],
+    }
+    const s = startOf(mode, { ...withReceipt(receipt({ result })), stockItems }, NOW)
+    if (s.row !== 'V1') throw new Error(s.row)
+    expect(s.draft.items.map((i) => [i.stockItemId, i.stockQuantity])).toEqual([[4, '2'], [null, ''], [null, '']])
+  })
+  it('V1: 日付が読めない・本当にない日なら撮った日(日本時間)。知らない支払いのコードは選ばない', () => {
     const s = startOf(mode, withReceipt(receipt({ result: { ...ai, purchasedOn: null, paymentMethod: 'emoney' } })), NOW)
     if (s.row !== 'V1') throw new Error(s.row)
     expect(s.draft.spentOn).toBe('2026-11-16')
     expect(s.draft.paymentMethod).toBe('')
+    // 本当にない日に読めたときも撮った日
+    const bad = startOf(mode, withReceipt(receipt({ result: { ...ai, purchasedOn: '2026-02-30' } })), NOW)
+    if (bad.row !== 'V1') throw new Error(bad.row)
+    expect(bad.draft.spentOn).toBe('2026-11-16')
   })
   it('V2: 読み取り中は入力を出さない。「待たずに手で入力する」なら V3 の初めの値', () => {
     expect(startOf(mode, withReceipt(receipt({ read: 'reading', result: null })), NOW).row).toBe('V2')
@@ -101,15 +123,23 @@ describe('表 V 確かめて保存の画面の始まり', () => {
       items: [{ position: 1, name: null, categoryId: 2, taxRate: 10 as const, baseAmount: -50, amount: -50, stockItemId: 3, stockQuantity: 2 }],
       amount: -60,
       adjustments: [{ kind: 'discount' as const, amount: -10, taxRate: null }],
+      updatedAt: '2026-11-02T01:00:00Z',
     }
     const s = startOf({ kind: 'expense', expenseId: 9 }, { ...base, expense }, NOW)
     if (s.row !== 'V6') throw new Error(s.row)
     expect(s.draft).toMatchObject({ storeName: '薬局', spentOn: '2026-11-02', paymentMethod: 'cash' })
     expect(s.draft.items[0]).toMatchObject({ name: '', categoryId: 2, baseAmount: '-50', stockItemId: 3, stockQuantity: '2' })
     expect(s.draft.adjustments[0]).toMatchObject({ kind: 'discount', amount: '-10' })
+    expect(s.draft.baseUpdatedAt).toBe('2026-11-02T01:00:00Z')
+    // 端末に残した入力: 同じ版から始めたものだけ戻す。残した後に支出が直されていたら使わない
+    const stored = { ...s.draft, storeName: '直しかけ' }
+    expect(usableStored('V6', stored, expense)).toBe(stored)
+    expect(usableStored('V6', stored, { ...expense, updatedAt: '2026-11-03T00:00:00Z' })).toBeNull()
+    expect(usableStored('V6', null, expense)).toBeNull()
+    expect(usableStored('V1', { ...stored, baseUpdatedAt: undefined }, null)).toMatchObject({ storeName: '直しかけ' })
   })
   it('V7: 明細の支出は入力を出さない(費目だけ直す画面)', () => {
-    const expense = { id: 9, origin: 'statement_purchase' as const, receiptId: null, spentOn: '2026-11-02', storeName: 'x', paymentMethod: 'rakuten_card', items: [], adjustments: [], amount: 0 }
+    const expense = { id: 9, origin: 'statement_purchase' as const, receiptId: null, spentOn: '2026-11-02', storeName: 'x', paymentMethod: 'rakuten_card', items: [], adjustments: [], amount: 0, updatedAt: '2026-11-02T00:00:00Z' }
     expect(startOf({ kind: 'expense', expenseId: 9 }, { ...base, expense }, NOW).row).toBe('V7')
   })
 })
@@ -199,5 +229,16 @@ describe('保存の体', () => {
   })
   it('品目が無ければ保存しない', () => {
     expect(toBody(draft({ items: [] }))).toEqual({ ok: false, errors: ['品目を 1 つ以上入れてください。'] })
+  })
+  it('日付: 本当にない日は入れ直させ、今日より後は断る(今日は通る。口と同じ)', () => {
+    expect(toBody(draft({ spentOn: '2026-02-30' }), '2026-11-16')).toMatchObject({ ok: false, errors: ['日付を入れてください。'] })
+    expect(toBody(draft({ spentOn: '2026-11-17' }), '2026-11-16')).toMatchObject({ ok: false, errors: ['日付が今日より後です。買った日を入れてください。'] })
+    expect(toBody(draft({ spentOn: '2026-11-16' }), '2026-11-16').ok).toBe(true)
+  })
+  it('返品・0 円の品目には在庫の品物を付けられない(口と同じ)', () => {
+    const item = (baseAmount: string) => [{ key: 'a', name: 'x', categoryId: 1, taxRate: null, baseAmount, stockItemId: 4, stockQuantity: '1' }]
+    expect(toBody(draft({ items: item('-300') }))).toMatchObject({ ok: false, errors: ['品目 1: 返品・0 円の品目は在庫に足せません。品物を「なし」にしてください。'] })
+    expect(toBody(draft({ items: item('0') })).ok).toBe(false)
+    expect(toBody(draft({ items: item('1') })).ok).toBe(true)
   })
 })

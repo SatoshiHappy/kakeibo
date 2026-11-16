@@ -213,9 +213,12 @@ describe('表 U 在庫の操作', () => {
     const other = await register(2)
     const { moveId: countMove } = await (await recount(id, 2)).json<{ moveId: number }>()
     const { moveId: otherUse } = await (await use(other)).json<{ moveId: number }>()
-    expect((await undo(id, 999999)).status).toBe(404)
-    expect((await undo(id, countMove)).status).toBe(404)
-    expect((await undo(id, otherUse)).status).toBe(404)
+    // 品物の not_found(U1)と分けた code(ほかの端末が先に取り消したときに「品物が外れた」と誤って出さない)
+    for (const m of [999999, countMove, otherUse]) {
+      const res = await undo(id, m)
+      expect(res.status).toBe(404)
+      expect(await res.json()).toEqual({ error: 'move_not_found' })
+    }
   })
   it('U7: 後に動き(使った・入れ直し)があれば 409', async () => {
     const id = await register(3)

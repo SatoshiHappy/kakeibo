@@ -4,7 +4,9 @@
 import { exportJWK, generateKeyPair, SignJWT } from 'jose'
 import type { Plugin } from 'vite'
 
-export const DEV_ORIGIN = 'http://127.0.0.1:5173'
+/** 開発サーバーの待ち受け(DEV_PORT で変えられる。E2E を別のポートで走らせるとき) */
+export const DEV_PORT = Number(process.env.DEV_PORT ?? 5173)
+export const DEV_ORIGIN = `http://127.0.0.1:${DEV_PORT}`
 export const DEV_TEAM_DOMAIN = `${DEV_ORIGIN}/dev-access`
 export const DEV_AUD = 'kakeibo-local'
 /** ログインする開発の利用者。D1(ローカル)の users に要る(npm run dev:setup が入れる) */

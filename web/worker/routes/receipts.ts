@@ -170,11 +170,13 @@ receipts.get('/:id{[0-9]+}/images/:position{[0-9]+}', async (c) => {
     .bind(Number(c.req.param('id')), Number(c.req.param('position')))
     .first<{ r2_key: string }>()
   if (!img) return c.json({ error: 'not_found' }, 404)
-  const obj = await c.env.RECEIPTS.get(img.r2_key)
+  // 下書きを捨てた後の新しいレシートは同じ id になりうる(receipts は AUTOINCREMENT でない)ので、URL だけで端末に控えさせない。
+  // 毎回 R2 の ETag で聞き直させ、同じ写真なら 304 で中身を送らない
+  const obj = await c.env.RECEIPTS.get(img.r2_key, { onlyIf: c.req.raw.headers })
   if (!obj) return c.json({ error: 'not_found' }, 404)
-  return new Response(obj.body, {
-    headers: { 'content-type': 'image/jpeg', 'cache-control': 'private, max-age=3600' },
-  })
+  const headers = { 'content-type': 'image/jpeg', 'cache-control': 'private, no-cache', etag: obj.httpEtag }
+  if (!('body' in obj)) return new Response(null, { status: 304, headers })
+  return new Response(obj.body, { headers })
 })
 
 // 読み取り: 読み取り待ちならその回を読む。読めなかった(時間切れを含む)なら回を 1 増やして読み直す(§2.1)
@@ -203,9 +205,11 @@ receipts.post('/:id{[0-9]+}/read', async (c) => {
     attempt += 1
   }
 
-  const { results: categories } = await db
-    .prepare('SELECT id, name FROM categories WHERE retired_at IS NULL ORDER BY sort_order')
-    .all<{ id: number; name: string }>()
+  const [{ results: categories }, { results: stockItems }] = await Promise.all([
+    db.prepare('SELECT id, name FROM categories WHERE retired_at IS NULL ORDER BY sort_order').all<{ id: number; name: string }>(),
+    // やめた品物は渡さない(データと照合 §1.14)
+    db.prepare('SELECT id, name FROM stock_items WHERE retired_at IS NULL ORDER BY id').all<{ id: number; name: string }>(),
+  ])
   const bytes: Uint8Array[] = []
   for (const img of images) {
     const obj = await c.env.RECEIPTS.get(img.r2_key)
@@ -213,7 +217,7 @@ receipts.post('/:id{[0-9]+}/read', async (c) => {
     bytes.push(new Uint8Array(await obj.arrayBuffer()))
   }
 
-  const outcome = await readReceipt(c.env, bytes, categories)
+  const outcome = await readReceipt(c.env, bytes, categories, stockItems)
   // 今の回の応答だけを書く(遅れた前の回・2 回目の同時の読み取りは 0 行)
   if (outcome.ok) {
     await db
@@ -236,7 +240,8 @@ receipts.post('/:id{[0-9]+}/read', async (c) => {
   return c.json(present(after!, images, new Date()))
 })
 
-// 下書きを捨てる: R2 の画像を先に消し、次に行を消す(§1.7)
+// 下書きを捨てる: 保存されていないときだけ行を消し、消せたら R2 の画像を消す(§1.7)。
+// 行を先に消すのは、同時に走った保存が勝ったときに、保存した支出の写真を消さないため
 receipts.delete('/:id{[0-9]+}', async (c) => {
   const db = c.env.DB
   const id = Number(c.req.param('id'))
@@ -244,10 +249,11 @@ receipts.delete('/:id{[0-9]+}', async (c) => {
   if (!row) return c.json({ error: 'not_found' }, 404)
   if (row.expense_id !== null) return c.json({ error: 'saved_receipt' }, 409)
   const images = await loadImages(db, id)
-  if (images.length > 0) await c.env.RECEIPTS.delete(images.map((i) => i.r2_key))
-  await db
+  const res = await db
     .prepare('DELETE FROM receipts WHERE id = ? AND NOT EXISTS (SELECT 1 FROM expenses WHERE receipt_id = ?)')
     .bind(id, id)
     .run()
+  if (res.meta.changes === 0) return c.json({ error: 'saved_receipt' }, 409)
+  if (images.length > 0) await c.env.RECEIPTS.delete(images.map((i) => i.r2_key))
   return c.body(null, 204)
 })

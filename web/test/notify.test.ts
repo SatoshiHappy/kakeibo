@@ -1,7 +1,7 @@
 // 在庫の通知。設計書 表 N の各行・書いてから送る・送った応答の扱い(§1.16)と、購読の口(基盤 §7)
 import { env } from 'cloudflare:workers'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { runStockAlerts } from '../worker/notify'
+import { alertLine, runStockAlerts } from '../worker/notify'
 import type { Bindings } from '../worker/types'
 import { accessToken, addUser, request, serveTestCerts } from './helpers'
 
@@ -192,5 +192,19 @@ describe('購読の口', () => {
   })
   it('ログインしていなければ 401(§3.1 の判定が掛かる)', async () => {
     expect((await request('/api/push/subscriptions', { method: 'PUT', body: '{}' })).status).toBe(401)
+  })
+})
+
+describe('通知の本文の 1 行(画面の文言と同じ)', () => {
+  const item = (daysLeft: number | null) =>
+    ({
+      name: '洗剤',
+      status: { state: 'soon', forecast: daysLeft === null ? null : { paceDays: 10, runOutOn: '2026-11-20', daysLeft } },
+    }) as unknown as Parameters<typeof alertLine>[0]
+  it('あと 0 日・1 日はそのまま、過ぎた(-1)は「なくなる日を過ぎた」、予測なしは「残り 0」', () => {
+    expect(alertLine(item(1))).toBe('洗剤(あと1日)')
+    expect(alertLine(item(0))).toBe('洗剤(あと0日)')
+    expect(alertLine(item(-1))).toBe('洗剤(なくなる日を過ぎた)')
+    expect(alertLine(item(null))).toBe('洗剤(残り 0)')
   })
 })

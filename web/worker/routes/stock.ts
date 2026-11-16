@@ -209,7 +209,8 @@ stock.delete('/:id{[0-9]+}/moves/:moveId{[0-9]+}', async (c) => {
     )
     .bind(moveId, id)
     .first<{ moved_at: string; has_later: number }>()
-  if (!move) return c.json({ error: 'not_found' }, 404) // U6
+  // U6。品物の not_found(U1)と分ける(ほかの端末が先に取り消したときに「品物が外れた」と誤って出さないため)
+  if (!move) return c.json({ error: 'move_not_found' }, 404)
   if (move.has_later === 1) return c.json({ error: 'not_latest' }, 409) // U7
   return c.json({ error: 'undo_expired' }, 409) // U8
 })

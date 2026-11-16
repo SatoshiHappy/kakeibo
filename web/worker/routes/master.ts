@@ -1,7 +1,7 @@
 // 費目・予算・支払い方法・集計の口。正本: docs/仕様/要求.md の集計・docs/設計/データと照合.md §1.3・§1.4・§4
 import { Hono } from 'hono'
 import { z } from 'zod'
-import { nowIso } from '../time'
+import { jstDate, nowIso } from '../time'
 import { month } from '../schemas'
 import type { AppEnv } from '../types'
 
@@ -69,8 +69,13 @@ master.patch('/categories/:id{[0-9]+}', async (c) => {
   const id = Number(c.req.param('id'))
   const b = parsed.data
   if (b.kind !== undefined && !(await kindExists(db, b.kind))) return c.json({ error: 'invalid_kind' }, 400)
+  const before = await db.prepare('SELECT retired_at FROM categories WHERE id = ?').bind(id).first<{ retired_at: string | null }>()
+  if (!before) return c.json({ error: 'not_found' }, 404)
+  // やめる = やめた月(日本時間)から予算なし(§1.4 の「この月から予算なし」の行を書く)。前の月は当時の予算のまま。戻しても予算は戻らない
+  const retiring = b.retired === true && before.retired_at === null
   try {
-    const res = await db
+    const [res] = await db.batch([
+      db
       .prepare(
         `UPDATE categories SET
            name = COALESCE(?, name),
@@ -79,9 +84,19 @@ master.patch('/categories/:id{[0-9]+}', async (c) => {
            retired_at = CASE WHEN ? IS NULL THEN retired_at WHEN ? = 1 THEN COALESCE(retired_at, ?) ELSE NULL END
          WHERE id = ?`,
       )
-      .bind(b.name ?? null, b.sortOrder ?? null, b.kind ?? null, b.retired === undefined ? null : 1, b.retired ? 1 : 0, nowIso(), id)
-      .run()
-    if (res.meta.changes === 0) return c.json({ error: 'not_found' }, 404)
+      .bind(b.name ?? null, b.sortOrder ?? null, b.kind ?? null, b.retired === undefined ? null : 1, b.retired ? 1 : 0, nowIso(), id),
+      ...(retiring
+        ? [
+            db
+              .prepare(
+                `INSERT INTO budgets (category_id, from_month, amount) VALUES (?, ?, NULL)
+                 ON CONFLICT (category_id, from_month) DO UPDATE SET amount = NULL`,
+              )
+              .bind(id, jstDate().slice(0, 7)),
+          ]
+        : []),
+    ])
+    if (res!.meta.changes === 0) return c.json({ error: 'not_found' }, 404)
   } catch (e) {
     const msg = e instanceof Error ? e.message : ''
     if (msg.includes('UNIQUE constraint failed')) return c.json({ error: 'duplicate_name' }, 409)
@@ -104,7 +119,7 @@ master.get('/prefs', async (c) => {
     .all<{ id: number; name: string; kind: string; retired: number; systemRole: string | null; budget: number | null }>()
   return c.json({
     month: m.data,
-    categories: results.map((r) => ({ ...r, retired: r.retired === 1, budget: r.retired === 1 ? null : r.budget })),
+    categories: results.map((r) => ({ ...r, retired: r.retired === 1 })),
   })
 })
 
@@ -131,7 +146,7 @@ master.put('/budgets', async (c) => {
 
 /**
  * 費目ごとの額(§4.2・§4.4)。期間は [start, start の months か月後)、range が null なら通算。budgetMonth を渡せばその月に効く予算も付ける。
- * やめた費目は額が 0 でないときだけ返す。種類で合計を分けるのは画面(表 G・表 H)。
+ * やめた費目は額が 0 でないか、budgetMonth に効く予算があるときだけ返す。種類で合計を分けるのは画面(表 G・表 H)。
  */
 export async function categoryAmounts(db: D1Database, range: { start: string; months: 1 | 12 } | null, budgetMonth: string | null) {
   const { results } = await db
@@ -149,8 +164,9 @@ export async function categoryAmounts(db: D1Database, range: { start: string; mo
     )
     .bind(...(range ? [range.start, range.start] : []), ...(budgetMonth ? [budgetMonth] : []))
     .all<{ categoryId: number; name: string; kind: string; retired: number; amount: number; budget?: number | null }>()
+  // やめた費目は、額が 0 でないか、その月に効く予算があるときだけ返す(やめる前の月の予算の計を変えない。§4.2)
   return results
-    .filter((r) => r.retired === 0 || r.amount !== 0)
+    .filter((r) => r.retired === 0 || r.amount !== 0 || (r.budget ?? null) !== null)
     .map((r) => ({ categoryId: r.categoryId, name: r.name, kind: r.kind, amount: r.amount, ...(budgetMonth ? { budget: r.budget ?? null } : {}) }))
 }
 

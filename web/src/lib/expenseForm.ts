@@ -10,7 +10,8 @@ export type AiRead = {
   storeName: string
   purchasedOn: string | null
   paymentMethod: string
-  items: { name: string; baseAmount: number; taxRate: Rate; categoryId: number }[]
+  /** stockItemId・stockQuantity は在庫の当て方を足す前に読んだ下書きには無い */
+  items: { name: string; baseAmount: number; taxRate: Rate; categoryId: number; stockItemId?: number | null; stockQuantity?: number | null }[]
   adjustments: { kind: 'discount' | 'tax'; amount: number; taxRate: Rate }[]
   printedTotal: number | null
 }
@@ -41,6 +42,8 @@ export type ExpenseDetail = {
   }[]
   adjustments: { kind: 'discount' | 'tax'; amount: number; taxRate: Rate }[]
   amount: number
+  /** 端末に残した入力が、この版の支出から始めたものかを見分ける(表 V の V6) */
+  updatedAt: string
 }
 export type FormResponse = {
   categories: Category[]
@@ -60,6 +63,8 @@ export type ExpenseDraft = {
   paymentMethod: string
   items: ItemDraft[]
   adjustments: AdjustmentDraft[]
+  /** 支出を直す(V6)とき、始めた支出の updated_at。端末に残した入力を戻すかの判定に使う */
+  baseUpdatedAt?: string
 }
 
 export type Mode = { kind: 'receipt'; receiptId: number } | { kind: 'new' } | { kind: 'expense'; expenseId: number }
@@ -89,6 +94,23 @@ function blank(spentOn: string, cats: Category[]): ExpenseDraft {
   return { clientRequestId: newKey(), storeName: '', spentOn, paymentMethod: '', items: [blankItem(uncategorizedId(cats))], adjustments: [] }
 }
 
+/**
+ * 端末に残した入力を初めの値に使えるか(表 V の脚注)。支出を直す(V6)では、残した後に支出が直されていたら使わない
+ * (家族やほかの端末の直しを、古い入力で上書きしないため)
+ */
+export function usableStored(row: Start['row'], stored: ExpenseDraft | null, expense: ExpenseDetail | null): ExpenseDraft | null {
+  if (stored === null) return null
+  if (row === 'V6' && stored.baseUpdatedAt !== expense?.updatedAt) return null
+  return stored
+}
+
+/** AI が当てた在庫の品物。今も使える品物(やめていない)だけ入れる */
+function aiStock(i: AiRead['items'][number], stock: StockChoice[]): Pick<ItemDraft, 'stockItemId' | 'stockQuantity'> {
+  const id = i.stockItemId ?? null
+  if (id === null || !stock.some((s) => s.id === id && !s.retired)) return { stockItemId: null, stockQuantity: '' }
+  return { stockItemId: id, stockQuantity: String(i.stockQuantity ?? 1) }
+}
+
 /** 表 V(V8 を除く)。manual = 読み取り中に「待たずに手で入力する」を押した */
 export function startOf(mode: Mode, data: FormResponse, now = new Date(), manual = false): Start {
   const cats = data.categories
@@ -100,6 +122,7 @@ export function startOf(mode: Mode, data: FormResponse, now = new Date(), manual
       row: 'V6',
       draft: {
         clientRequestId: newKey(),
+        baseUpdatedAt: e.updatedAt,
         storeName: e.storeName,
         spentOn: e.spentOn,
         paymentMethod: e.paymentMethod,
@@ -129,7 +152,7 @@ export function startOf(mode: Mode, data: FormResponse, now = new Date(), manual
     draft: {
       clientRequestId: newKey(),
       storeName: ai.storeName,
-      spentOn: ai.purchasedOn ?? uploadedOn,
+      spentOn: ai.purchasedOn !== null && isRealDate(ai.purchasedOn) ? ai.purchasedOn : uploadedOn,
       paymentMethod: data.paymentMethods.some((p) => p.code === ai.paymentMethod) ? ai.paymentMethod : '',
       items:
         ai.items.length === 0
@@ -140,8 +163,7 @@ export function startOf(mode: Mode, data: FormResponse, now = new Date(), manual
               categoryId: usable.has(i.categoryId) ? i.categoryId : fallback,
               taxRate: i.taxRate,
               baseAmount: String(i.baseAmount),
-              stockItemId: null,
-              stockQuantity: '',
+              ...aiStock(i, data.stockItems),
             })),
       adjustments: ai.adjustments.map((a) => ({ key: newKey(), kind: a.kind, taxRate: a.taxRate, amount: String(a.amount) })),
     },
@@ -189,9 +211,13 @@ export type Body = {
 }
 
 /** 保存の体を作る。入力の誤りがあれば、人に見せる文の並びを返す(口の検査 §2.2 と同じ条件を先に見る) */
-export function toBody(d: ExpenseDraft): { ok: true; body: Body } | { ok: false; errors: string[] } {
+/** 本当にある日か(口の検査と同じ。2026-02-30 などは無い) */
+export const isRealDate = (v: string) => /^\d{4}-\d{2}-\d{2}$/.test(v) && new Date(`${v}T00:00:00Z`).toISOString().slice(0, 10) === v
+
+export function toBody(d: ExpenseDraft, today = jstToday(new Date())): { ok: true; body: Body } | { ok: false; errors: string[] } {
   const errors: string[] = []
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(d.spentOn)) errors.push('日付を入れてください。')
+  if (!isRealDate(d.spentOn)) errors.push('日付を入れてください。')
+  else if (d.spentOn > today) errors.push('日付が今日より後です。買った日を入れてください。')
   if (d.paymentMethod === '') errors.push('支払いを選んでください。')
   if (d.items.length === 0) errors.push('品目を 1 つ以上入れてください。')
   const items = d.items.map((i, n) => {
@@ -201,6 +227,7 @@ export function toBody(d: ExpenseDraft): { ok: true; body: Body } | { ok: false;
     if (i.categoryId === null) errors.push(`${no}: 費目を選んでください。`)
     const qty = i.stockItemId === null ? null : parseYen(i.stockQuantity)
     if (i.stockItemId !== null && (qty === null || qty < 1)) errors.push(`${no}: 在庫に足す個数を 1 以上で入れてください。`)
+    if (i.stockItemId !== null && amount !== null && amount <= 0) errors.push(`${no}: 返品・0 円の品目は在庫に足せません。品物を「なし」にしてください。`)
     return {
       name: i.name.trim() === '' ? null : i.name.trim(),
       categoryId: i.categoryId ?? 0,

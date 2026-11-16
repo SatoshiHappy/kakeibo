@@ -6,8 +6,8 @@ import { Screen, TopBar } from '../components/Shell'
 import { ApiError } from '../lib/api'
 import { whenLabel, yen } from '../lib/format'
 import { useApiQuery } from '../lib/query'
-import { groupPhotos, type TrayPhoto } from '../lib/tray'
-import { addPhotos, photoUrl, removePhoto, sendTray, setContinued, useTray } from '../lib/trayStore'
+import { canContinue, groupPhotos, MAX_PHOTOS_PER_RECEIPT, type TrayPhoto } from '../lib/tray'
+import { addPhotos, photoUrl, removePhoto, sendTray, setContinued, TooManyPhotos, useTray } from '../lib/trayStore'
 
 type Draft = {
   id: number
@@ -48,7 +48,9 @@ export function Capture() {
     } catch (err) {
       console.error(err)
       setError(
-        err instanceof ApiError && err.status !== null
+        err instanceof TooManyPhotos
+          ? `1 枚のレシートの写真は ${MAX_PHOTOS_PER_RECEIPT} 枚までです。「前の続き」を外して分けてください。`
+          : err instanceof ApiError && err.status !== null
           ? '送れませんでした。残った写真をもう一度送ってください。'
           : '通信できませんでした。残った写真は通信のある所でもう一度送ってください。',
       )
@@ -123,7 +125,12 @@ function TrayPanel({ photos, disabled, onSend }: { photos: TrayPhoto[]; disabled
               <span className="tlabel">{label}</span>
               {i > 0 && (
                 <label className="tcont">
-                  <input type="checkbox" checked={p.cont} disabled={disabled} onChange={(e) => void setContinued(p.id, e.currentTarget.checked)} />
+                  <input
+                    type="checkbox"
+                    checked={p.cont}
+                    disabled={disabled || (!p.cont && !canContinue(photos, p.id))}
+                    onChange={(e) => void setContinued(p.id, e.currentTarget.checked)}
+                  />
                   前の続き
                 </label>
               )}
@@ -131,6 +138,7 @@ function TrayPanel({ photos, disabled, onSend }: { photos: TrayPhoto[]; disabled
           )
         })}
       </ul>
+      {groups.some((g) => g.length >= MAX_PHOTOS_PER_RECEIPT) && <p className="note">1 枚のレシートの写真は {MAX_PHOTOS_PER_RECEIPT} 枚までです。</p>}
       <button className="pbtn" type="button" disabled={disabled} onClick={onSend}>
         送る(レシート {groups.length} 枚)
       </button>

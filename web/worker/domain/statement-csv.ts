@@ -73,24 +73,22 @@ export function parseStatementCsv(bytes: ArrayBuffer, todayJst: string): ParseOu
   if (m === null) return { ok: false, reason: 'bad_format', check: 'C2' }
   if (data.some((r) => r.length !== 11)) return { ok: false, reason: 'bad_format', check: 'C3' }
 
-  const rows: Omit<ParsedRow, 'ordinal'>[] = []
-  for (const r of data) {
-    const usedOn = toDate(r[0])
-    if (!usedOn) return { ok: false, reason: 'bad_format', check: 'C4' }
+  // C4・C5・C6 は表の順に、それぞれ全部の行に掛けてから次へ進む(違う行に違う理由が当たっても、表の上の理由を返す)
+  if (data.some((r) => toDate(r[0]) === null)) return { ok: false, reason: 'bad_format', check: 'C4' }
+  if (data.some((r) => r[4] !== '-' && toInteger(r[4]) === null)) return { ok: false, reason: 'bad_format', check: 'C5' }
+  if (data.some((r) => toInteger(r[5]) === null)) return { ok: false, reason: 'bad_format', check: 'C6' }
+  const rows: Omit<ParsedRow, 'ordinal'>[] = data.map((r) => {
     const amount = r[4] === '-' ? null : toInteger(r[4])
-    if (r[4] !== '-' && amount === null) return { ok: false, reason: 'bad_format', check: 'C5' }
-    const fee = toInteger(r[5])
-    if (fee === null) return { ok: false, reason: 'bad_format', check: 'C6' }
-    rows.push({
-      usedOn,
+    return {
+      usedOn: toDate(r[0])!,
       merchant: r[1],
       cardUser: r[2],
       paymentType: r[3],
       amountCell: amount === null ? '-' : String(amount),
       amount,
-      fee,
-    })
-  }
+      fee: toInteger(r[5])!,
+    }
+  })
 
   const priced = rows.filter((r) => r.amount !== null).map((r) => r.usedOn).sort()
   if (priced.length === 0) return { ok: false, reason: 'billing_month_unknown', check: 'C7' }

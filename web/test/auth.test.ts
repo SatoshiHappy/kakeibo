@@ -1,6 +1,8 @@
 // 基盤 §3.1 の入口の判定のデシジョン表を行ごとに通す。
-import { beforeEach, describe, expect, it } from 'vitest'
-import { accessToken, addUser, request, serveTestCerts } from './helpers'
+import { env } from 'cloudflare:workers'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { app } from '../worker/app'
+import { accessToken, addUser, ORIGIN, request, serveTestCerts } from './helpers'
 
 beforeEach(async () => {
   serveTestCerts()
@@ -105,5 +107,26 @@ describe('応答の見出し', () => {
       expect(res.headers.get('x-content-type-options')).toBe('nosniff')
       expect(res.headers.get('x-frame-options')).toBe('SAMEORIGIN')
     }
+  })
+})
+
+describe('公開鍵を取れない(基盤 §3.1)', () => {
+  // 鍵の控えはチームのドメインごとなので、まだ控えの無いドメインで確かめる
+  const down = 'https://down.cloudflareaccess.example'
+  const call = async () => {
+    const headers = new Headers({ 'cf-access-jwt-assertion': await accessToken({ iss: down }), origin: ORIGIN })
+    return app.request(`${ORIGIN}/api/me`, { headers }, { ...env, ACCESS_TEAM_DOMAIN: down })
+  }
+  it('certs の口が 5xx なら 401 でなく 500(ログインし直しても直らないため)', async () => {
+    const realFetch = globalThis.fetch
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
+      const url = input instanceof Request ? input.url : String(input)
+      if (url === `${down}/cdn-cgi/access/certs`) return new Response('down', { status: 503 })
+      return realFetch(input, init)
+    })
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    const res = await call()
+    expect(res.status).toBe(500)
+    expect(await res.json()).toEqual({ error: 'internal' })
   })
 })

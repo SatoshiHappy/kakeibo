@@ -45,5 +45,5 @@
 
 ## 開発
 - 初回: `npm run dev:setup`(ローカルの D1 に表を作り、開発の利用者 `dev@example.com` を入れる)。
-- `npm run dev` → http://127.0.0.1:5173 。開発用のログイン(`dev/access-plugin.ts`)が `/api/*` に自前の鍵で署名した証明を付け、Worker は本番と同じ検証を通す。本番のビルドには入らない。
+- `npm run dev` → http://127.0.0.1:5173 (`DEV_PORT=5174` で変えられる。E2E も同じ変数を見る)。開発用のログイン(`dev/access-plugin.ts`)が `/api/*` に自前の鍵で署名した証明を付け、Worker は本番と同じ検証を通す。本番のビルドには入らない。
 - 秘密(API キー・VAPID の秘密鍵)は `wrangler secret` と `.dev.vars` だけに置く(どちらも git に入れない)。

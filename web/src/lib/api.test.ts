@@ -54,16 +54,19 @@ describe('表 K', () => {
     await Promise.allSettled([api.request('/a'), api.request('/b')])
     expect(deps.reload).toHaveBeenCalledTimes(1)
   })
-  it('K3: 印がある 401 は再読み込みせず login_failed。ログインし直すで印を消して再読み込み', async () => {
+  it('K3: 印がある 401 は再読み込みせず login_failed。ログインし直すで印を消し、下書きを残し終えてから再読み込み', async () => {
     const { api, deps, store } = setup([json(401, {})], true)
     const seen: string[] = []
     api.onAuthState((s) => seen.push(s))
     await expect(api.request('/api/x')).rejects.toBeInstanceOf(ApiError)
     expect(deps.reload).not.toHaveBeenCalled()
     expect(seen).toEqual(['login_failed'])
-    api.relogin()
+    const order: string[] = []
+    api.registerDraftSaver(async () => void order.push('saved'))
+    vi.mocked(deps.reload).mockImplementation(() => void order.push('reload'))
+    await api.relogin()
     expect(store.has(RELOAD_FLAG)).toBe(false)
-    expect(deps.reload).toHaveBeenCalledTimes(1)
+    expect(order).toEqual(['saved', 'reload'])
   })
   it('K4: 403 は再読み込みせず forbidden(印があってもなくても)', async () => {
     for (const flag of [false, true]) {

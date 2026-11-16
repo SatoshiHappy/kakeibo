@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { fitSize } from './photo'
-import { groupPhotos, requestIdOf, type TrayPhoto } from './tray'
+import { canContinue, groupPhotos, MAX_PHOTOS_PER_RECEIPT, requestIdOf, type TrayPhoto } from './tray'
 import { whenLabel } from './format'
 
 const photo = (id: string, cont = false): TrayPhoto => ({ id, blob: new Blob(), cont })
@@ -16,6 +16,14 @@ describe('写真をレシートに分ける', () => {
   })
   it('写真が無ければレシートも無い', () => {
     expect(groupPhotos([])).toEqual([])
+  })
+  it('「前の続き」は 1 枚のレシートが 10 枚(口の上限)までのときだけ付けられる', () => {
+    const nine = [photo('a'), ...Array.from({ length: 8 }, (_, i) => photo(`c${i}`, true))]
+    expect(canContinue([...nine, photo('j')], 'j')).toBe(true) // 10 枚目
+    const ten = [...nine, photo('j', true)]
+    expect(canContinue([...ten, photo('k')], 'k')).toBe(false) // 11 枚目
+    expect(canContinue([...ten, photo('k'), photo('l', true)], 'l')).toBe(true) // 別のレシートの 2 枚目
+    expect(MAX_PHOTOS_PER_RECEIPT).toBe(10)
   })
 })
 

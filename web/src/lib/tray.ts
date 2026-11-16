@@ -19,6 +19,14 @@ export function groupPhotos(photos: TrayPhoto[]): TrayPhoto[][] {
   return groups
 }
 
+/** 1 枚のレシートの写真の上限(口の MAX_IMAGES と同じ値) */
+export const MAX_PHOTOS_PER_RECEIPT = 10
+
+/** この写真に「前の続き」を付けても、どのレシートも上限を超えないか */
+export function canContinue(photos: TrayPhoto[], id: string): boolean {
+  return groupPhotos(photos.map((p) => (p.id === id ? { ...p, cont: true } : p))).every((g) => g.length <= MAX_PHOTOS_PER_RECEIPT)
+}
+
 /** レシート 1 枚の送信の ID = 写真の ID の並びの SHA-256(同じ組み合わせは同じ下書き、変えたら別の下書き) */
 export async function requestIdOf(group: TrayPhoto[]): Promise<string> {
   const bytes = new TextEncoder().encode(group.map((p) => p.id).join('\n'))

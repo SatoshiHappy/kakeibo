@@ -54,7 +54,7 @@ const expense = (over: Record<string, unknown> = {}) => ({
   spentOn: day(10),
   storeName: 'スーパー',
   paymentMethod: 'cash',
-  items: [{ name: '牛乳', categoryId: 1, taxRate: 8, baseAmount: 200 }],
+  items: [{ name: '牛乳', categoryId: 1, taxRate: 8, baseAmount: 200, stockItemId: null, stockQuantity: null }],
   adjustments: [],
   ...over,
 })

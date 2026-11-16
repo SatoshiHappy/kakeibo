@@ -2,10 +2,23 @@
 // 結果の優先順: JWT の検証(401)→ 利用者の表(403)→ CSRF の検査(403)→ 通す
 import type { MiddlewareHandler } from 'hono'
 import { csrf } from 'hono/csrf'
-import { createRemoteJWKSet, jwtVerify, type JWTVerifyGetKey } from 'jose'
+import { createRemoteJWKSet, errors, jwtVerify, type JWTVerifyGetKey } from 'jose'
 import type { AppEnv, User } from './types'
 
 const jwksByTeamDomain = new Map<string, JWTVerifyGetKey>()
+
+/** 証明の側の誤り(jose の code)。これ以外の失敗(公開鍵を取れない等)は 401 にしない */
+const TOKEN_ERRORS = new Set<string>([
+  'ERR_JWS_INVALID',
+  'ERR_JWT_INVALID',
+  'ERR_JWS_SIGNATURE_VERIFICATION_FAILED',
+  'ERR_JWT_CLAIM_VALIDATION_FAILED',
+  'ERR_JWT_EXPIRED',
+  'ERR_JWKS_NO_MATCHING_KEY',
+  'ERR_JWKS_MULTIPLE_MATCHING_KEYS',
+  'ERR_JOSE_ALG_NOT_ALLOWED',
+  'ERR_JOSE_NOT_SUPPORTED',
+])
 
 function jwksFor(teamDomain: string): JWTVerifyGetKey {
   let jwks = jwksByTeamDomain.get(teamDomain)
@@ -24,9 +37,11 @@ async function verifiedEmail(token: string | undefined, teamDomain: string, aud:
       audience: aud,
     })
     return typeof payload.email === 'string' ? payload.email.toLowerCase() : null
-  } catch {
-    // 署名・iss・aud・期限のどれかが合わない。理由は応答に出さない
-    return null
+  } catch (e) {
+    // 証明そのものの誤り(形・署名・iss・aud・期限・合う鍵が無い)は 401。理由は応答に出さない
+    if (e instanceof errors.JOSEError && TOKEN_ERRORS.has(e.code)) return null
+    // 公開鍵を取れない(時間切れ・5xx・壊れた応答・通信の失敗)はサーバーの障害なので 500 にする(基盤 §3.1。ログインし直しても直らない)
+    throw e
   }
 }
 

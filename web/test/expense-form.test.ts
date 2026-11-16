@@ -1,6 +1,7 @@
 // 確かめて保存の画面の口(データと照合 §4.7)
 import { env } from 'cloudflare:workers'
 import { beforeEach, describe, expect, it } from 'vitest'
+import { jstDate } from '../worker/time'
 import { accessToken, addUser, request, serveTestCerts } from './helpers'
 
 let token: string
@@ -97,5 +98,100 @@ describe('確かめて保存の画面の口', () => {
     expect(f.categories.find((c) => c.id === 2)).toMatchObject({ retired: true })
     expect(f.categories.map((c) => c.id)).not.toContain(3)
     expect(f.stockItems).toEqual([{ id: stockId, name: '紙', retired: true }])
+  })
+})
+
+describe('保存の送り直し(§4.7)', () => {
+  it('同じ clientRequestId の 2 回目は前の支出の id と reused を 200 で返し、支出を増やさない', async () => {
+    const body = {
+      clientRequestId: 'resend-1',
+      receiptId: null,
+      spentOn: '2026-11-03',
+      storeName: 's',
+      paymentMethod: 'cash',
+      items: [{ name: 'x', categoryId: 1, taxRate: null, baseAmount: 100, stockItemId: null, stockQuantity: null }],
+      adjustments: [],
+    }
+    const send = (b: unknown) => request('/api/expenses', { method: 'POST', headers: headers(), body: JSON.stringify(b) })
+    const first = await send(body)
+    expect(first.status).toBe(201)
+    const { id } = await first.json<{ id: number }>()
+    const again = await send({ ...body, items: [{ ...body.items[0], baseAmount: 90 }] })
+    expect(again.status).toBe(200)
+    expect(await again.json()).toEqual({ id, reused: true })
+    const { n } = (await db.prepare("SELECT count(*) AS n FROM expenses WHERE client_request_id = 'resend-1'").first<{ n: number }>())!
+    expect(n).toBe(1)
+  })
+})
+
+describe('保存の口の検査(§1.6)', () => {
+  const base = (over: Record<string, unknown> = {}) => ({
+    clientRequestId: `chk-${++seq}`,
+    receiptId: null,
+    spentOn: '2026-11-03',
+    storeName: 's',
+    paymentMethod: 'cash',
+    items: [{ name: 'x', categoryId: 1, taxRate: null, baseAmount: 100, stockItemId: null, stockQuantity: null }],
+    adjustments: [],
+    ...over,
+  })
+  const post = (b: unknown) => request('/api/expenses', { method: 'POST', headers: headers(), body: JSON.stringify(b) })
+  const put = (id: number, b: unknown) => request(`/api/expenses/${id}`, { method: 'PUT', headers: headers(), body: JSON.stringify(b) })
+  const addDay = (d: string, n: number) => new Date(Date.parse(`${d}T00:00:00Z`) + n * 86_400_000).toISOString().slice(0, 10)
+
+  it('日付: 今日(日本時間)までは保存でき、明日は future_date で断る(作る・直すとも)', async () => {
+    const today = jstDate()
+    expect((await post(base({ spentOn: addDay(today, -1) }))).status).toBe(201)
+    const res = await post(base({ spentOn: today }))
+    expect(res.status).toBe(201)
+    const { id } = await res.json<{ id: number }>()
+    const tomorrow = await post(base({ spentOn: addDay(today, 1) }))
+    expect(tomorrow.status).toBe(400)
+    expect(await tomorrow.json()).toEqual({ error: 'future_date' })
+    const { clientRequestId: _c, receiptId: _r, ...body } = base()
+    expect(await (await put(id, { ...body, spentOn: addDay(today, 1) })).json()).toEqual({ error: 'future_date' })
+  })
+  it('日付: 本当にない日(2026-02-29・2026-11-31)は 400 invalid_body。うるう日は通る', async () => {
+    expect((await post(base({ spentOn: '2026-02-29' }))).status).toBe(400)
+    expect((await post(base({ spentOn: '2026-11-31' }))).status).toBe(400)
+    expect((await post(base({ spentOn: '2024-02-29' }))).status).toBe(201)
+  })
+  it('在庫の品物は額が正の品目だけ(返品・0 円には付けられない)', async () => {
+    const stock = (
+      await db.prepare('INSERT INTO stock_items (name, notify_days, created_by, created_at) VALUES (?, 7, ?, ?)').bind('洗剤', userId, AT).run()
+    ).meta.last_row_id
+    const item = (baseAmount: number) => [{ name: 'x', categoryId: 1, taxRate: null, baseAmount, stockItemId: stock, stockQuantity: 1 }]
+    expect((await post(base({ items: item(-300) }))).status).toBe(400)
+    expect((await post(base({ items: item(0) }))).status).toBe(400)
+    expect((await post(base({ items: item(1) }))).status).toBe(201)
+  })
+  it('直す(PUT)は品目の在庫の欄を省けない(省くと黙って在庫の結び付きが外れるため)。作る(POST)は省ける', async () => {
+    const { clientRequestId: _c, receiptId: _r, ...body } = base()
+    const created = await post({ ...base(), items: [{ name: 'x', categoryId: 1, taxRate: null, baseAmount: 100 }] })
+    expect(created.status).toBe(201)
+    const { id } = await created.json<{ id: number }>()
+    expect((await put(id, { ...body, items: [{ name: 'x', categoryId: 1, taxRate: null, baseAmount: 100 }] })).status).toBe(400)
+    expect((await put(id, body)).status).toBe(200)
+  })
+  it('品目の費目だけ直す(PATCH): やめた費目は、同じ支出のほかの品目に付いていれば使える', async () => {
+    const created = await post(
+      base({
+        items: [
+          { name: 'a', categoryId: 1, taxRate: null, baseAmount: 100, stockItemId: null, stockQuantity: null },
+          { name: 'b', categoryId: 3, taxRate: null, baseAmount: 100, stockItemId: null, stockQuantity: null },
+        ],
+      }),
+    )
+    const { id } = await created.json<{ id: number }>()
+    await db.prepare('UPDATE categories SET retired_at = ? WHERE id = 3').bind(AT).run()
+    const patch = (position: number, categoryId: number) =>
+      request(`/api/expenses/${id}/items/${position}`, { method: 'PATCH', headers: headers(), body: JSON.stringify({ categoryId }) })
+    expect((await patch(1, 3)).status).toBe(200)
+    expect((await patch(2, 4)).status).toBe(200)
+    await db.prepare('UPDATE categories SET retired_at = ? WHERE id = 4').bind(AT).run()
+    // 4 はもうこの支出の品目 2 に付いているので使える。やめた 5 は付いていないので使えない
+    expect((await patch(1, 4)).status).toBe(200)
+    await db.prepare('UPDATE categories SET retired_at = ? WHERE id = 5').bind(AT).run()
+    expect((await patch(1, 5)).status).toBe(400)
   })
 })

@@ -20,6 +20,16 @@ export const receiptReadSchema = z.object({
         baseAmount: z.number().int().describe('値札の額から、その品目の直下の値引き行を引いた額(円)。返品は負'),
         taxRate: z.union([z.literal(0), z.literal(8), z.literal(10)]).nullable().describe('税率。不明なら null'),
         categoryId: z.number().int().describe('費目の id(与えた一覧から選ぶ)'),
+        stockItemId: z
+          .number()
+          .int()
+          .nullable()
+          .describe('在庫の品物の id(与えた在庫の品物の一覧に当たる品目だけ。当たらない・返品・値引きなら null)'),
+        stockQuantity: z
+          .number()
+          .int()
+          .nullable()
+          .describe('在庫に足す個数(買った単位。12 ロール入り 1 パック = 1。数量の行があればその数)。品物が null なら null'),
       }),
     )
     .describe('品目。値引き行は単独の品目にせず、真上の品目の baseAmount から引く'),
@@ -44,6 +54,7 @@ export type ReadOutcome =
   | { ok: false; kind: AiErrorKind; model: string }
 
 export type Category = { id: number; name: string }
+export type StockChoice = { id: number; name: string }
 
 const READ_TIMEOUT_MS = 60_000
 
@@ -58,7 +69,17 @@ function classify(err: unknown): AiErrorKind {
   return 'other'
 }
 
-export async function readReceipt(env: AiEnv, images: Uint8Array[], categories: Category[]): Promise<ReadOutcome> {
+/**
+ * 在庫の品物の当て方を口の検査にそろえる(人が確かめて保存で直す初めの値なので、合わない分は読み取り全体を失敗にせず外す):
+ * 一覧に無い品物・額が正でない品目(返品・0 円)は外す。品物があって個数が 1 未満・無いなら 1
+ */
+function withStock<T extends { baseAmount: number; stockItemId: number | null; stockQuantity: number | null }>(item: T, stockItems: StockChoice[]): T {
+  const usable = item.stockItemId !== null && item.baseAmount > 0 && stockItems.some((s) => s.id === item.stockItemId)
+  if (!usable) return { ...item, stockItemId: null, stockQuantity: null }
+  return { ...item, stockQuantity: item.stockQuantity !== null && item.stockQuantity >= 1 ? item.stockQuantity : 1 }
+}
+
+export async function readReceipt(env: AiEnv, images: Uint8Array[], categories: Category[], stockItems: StockChoice[] = []): Promise<ReadOutcome> {
   const model = `${env.AI_VENDOR}/${env.AI_MODEL}`
   try {
     const { output } = await generateText({
@@ -76,6 +97,9 @@ export async function readReceipt(env: AiEnv, images: Uint8Array[], categories: 
                 '画像が複数あるときは 1 枚のレシートの続きです。',
                 '費目は次の一覧から、品目ごとに最も近いものを選んでください(id で答える):',
                 ...categories.map((c) => `- ${c.id}: ${c.name}`),
+                ...(stockItems.length > 0
+                  ? ['在庫を数えている品物は次の一覧です。品目がどれかに当たれば stockItemId と個数を答え、当たらなければ null にしてください(id で答える):', ...stockItems.map((s) => `- ${s.id}: ${s.name}`)]
+                  : ['在庫を数えている品物はありません。stockItemId と stockQuantity は null にしてください。']),
               ].join('\n'),
             },
             ...images.map((data) => ({ type: 'file' as const, data, mediaType: 'image/jpeg' })),
@@ -85,7 +109,7 @@ export async function readReceipt(env: AiEnv, images: Uint8Array[], categories: 
     })
     const known = new Set(categories.map((c) => c.id))
     if (output.items.some((i) => !known.has(i.categoryId))) return { ok: false, kind: 'invalid_output', model }
-    return { ok: true, result: output, model }
+    return { ok: true, result: { ...output, items: output.items.map((i) => withStock(i, stockItems)) }, model }
   } catch (err) {
     const kind = classify(err)
     // 中身(画像・応答)は記録しない。種類と名前だけ(基盤 §4)

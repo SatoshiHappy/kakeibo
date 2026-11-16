@@ -26,6 +26,8 @@ function errorText(e: unknown): string {
       return '後に別の記録があるので取り消せません。数がずれていたら、品物を押して今の数を入れ直してください。'
     case 'duplicate_name':
       return '同じ名前の品物があります。'
+    case 'move_not_found':
+      return 'もう取り消されています(ほかの端末で取り消したなど)。'
     case 'not_found':
     case 'retired':
       return 'この品物は一覧から外れています。'

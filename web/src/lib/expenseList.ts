@@ -12,18 +12,26 @@ export type ListExpense = {
   amount: number
   chargeCount: number
   diff: number | null
+  /** 「明細に無い」を確認済みにした(表 A-2 の 5 行) */
+  noStatementAcked: boolean
+  /** 「このまま」にした差(表 A-3 の 2 行)。無ければ null */
+  acceptedDiff: number | null
   categoryIds: number[]
 }
 export type ListResponse = { expenses: ListExpense[]; categories: ListCategory[]; paymentMethods: ListPaymentMethod[] }
 
-export type Mark = { row: 'W1' | 'W2' | 'W3' | 'W4' | 'W5'; label: string | null }
+export type Mark = { row: 'W1' | 'W2' | 'W3' | 'W4' | 'W5' | 'W6' | 'W7'; label: string | null }
 
 /** 表 W: 行の印 */
 export function rowMark(e: ListExpense, methods: ListPaymentMethod[]): Mark {
   if (e.origin !== 'person') return { row: 'W5', label: '明細から' }
-  if (e.chargeCount > 0) return e.diff === 0 ? { row: 'W3', label: '明細と一致' } : { row: 'W4', label: '差あり' }
+  if (e.chargeCount > 0) {
+    if (e.diff === 0) return { row: 'W3', label: '明細と一致' }
+    return e.acceptedDiff === e.diff ? { row: 'W7', label: '差を確認済み' } : { row: 'W4', label: '差あり' }
+  }
   const expected = methods.find((m) => m.code === e.paymentMethod)?.statementExpected ?? false
-  return expected ? { row: 'W1', label: '明細待ち' } : { row: 'W2', label: null }
+  if (!expected) return { row: 'W2', label: null }
+  return e.noStatementAcked ? { row: 'W6', label: '確認済み(明細なし)' } : { row: 'W1', label: '明細待ち' }
 }
 
 export type Filter = 'all' | 'fixed' | 'uncategorized' | 'waiting'

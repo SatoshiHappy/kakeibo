@@ -60,6 +60,9 @@ function testTitles(dir) {
 }
 
 const escape = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+// 注意: 行の番号と同じ形の別の語(表 R の R2 と Cloudflare R2 など)をテストの題に書くと、その行を通したと誤って数える。
+// 題では別の語を使う(R2 は「画像の置き場(バケット)」)
+
 const covers = (titles, token) => {
   // C1 が C10 に当たらないよう、前後が英数字・ハイフンでないことを求める
   const re = new RegExp(`(?<![A-Za-z0-9-])${escape(token)}(?![0-9])`)

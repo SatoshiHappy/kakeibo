@@ -202,7 +202,7 @@ describe('人の支出を消す・直す(§2.2)', () => {
         spentOn: day(10),
         storeName: 'x',
         paymentMethod: 'rakuten_card',
-        items: [{ name: '品物', categoryId: 1, taxRate: null, baseAmount: 999 }], // 額を変えた
+        items: [{ name: '品物', categoryId: 1, taxRate: null, baseAmount: 999, stockItemId: null, stockQuantity: null }], // 額を変えた
         adjustments: [],
       }),
     })
