@@ -124,7 +124,7 @@ describe('読み取り', () => {
     const body = await res.json<{ read: string; result: typeof goodRead; model: string }>()
     expect(body.read).toBe('read')
     expect(body.result.items[0].name).toBe('牛乳')
-    expect(body.model).toBe('anthropic/claude-haiku-5-5')
+    expect(body.model).toBe('anthropic/claude-sonnet-5-5')
   })
   it('読めたものはもう一度読まない', async () => {
     const { id } = await (await upload()).json<{ id: number }>()

@@ -28,7 +28,7 @@
     "ACCESS_AUD": "0f0cf965e03b35e1686924bb76a99a2bd87851a273ef90410abe600e7ac2626a",
     // AI のベンダーとモデル(基盤 §4)。API キーは `wrangler secret put ANTHROPIC_API_KEY` だけに置く
     "AI_VENDOR": "anthropic",
-    "AI_MODEL": "claude-haiku-5-5",
+    "AI_MODEL": "claude-sonnet-5-5",
     // 照合の日の幅(設計 §3.0)
     "MATCH_WINDOW_DAYS": "30",
     // Web Push の VAPID の公開鍵(基盤 §7。2026-11-16 に本番の鍵の組を作った)。秘密鍵と subject は
