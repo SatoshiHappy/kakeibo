@@ -14,7 +14,8 @@ const fields = {
   dayOfMonth: z.number().int().min(1).max(31),
 }
 const createBody = z.object({ clientRequestId: z.string().min(1).max(100), ...fields, nextOn: isoDate.nullable().default(null) })
-const updateBody = z.object({ ...fields, nextOn: isoDate })
+// baseNextOn: 小窓を開いた時の次に作る日。nextOn がそれと同じなら日は直していないので、今の next_on を残す(開いている間に Cron が進めても戻さない)
+const updateBody = z.object({ ...fields, nextOn: isoDate, baseNextOn: isoDate.optional() })
 
 type Row = {
   id: number
@@ -116,7 +117,9 @@ recurring.put('/:id{[0-9]+}', async (c) => {
   const id = Number(c.req.param('id'))
   const row = await db.prepare('SELECT ended_at, next_on FROM recurring_expenses WHERE id = ?').bind(id).first<{ ended_at: string | null; next_on: string }>()
   if (!row || row.ended_at !== null) return c.json({ error: 'not_found' }, 404)
-  const refused = await refusal(db, b, row.next_on)
+  const unchanged = b.baseNextOn !== undefined && b.nextOn === b.baseNextOn
+  const nextOn = unchanged ? row.next_on : b.nextOn
+  const refused = await refusal(db, { ...b, nextOn }, row.next_on)
   if (refused) return c.json({ error: refused }, 400)
   let res: D1Result
   try {
@@ -125,7 +128,7 @@ recurring.put('/:id{[0-9]+}', async (c) => {
         `UPDATE recurring_expenses SET name = ?, category_id = ?, amount = ?, payment_method = ?, day_of_month = ?, next_on = ?, updated_at = ?
          WHERE id = ? AND ended_at IS NULL`,
       )
-      .bind(b.name, b.categoryId, b.amount, b.paymentMethod, b.dayOfMonth, b.nextOn, nowIso(), id)
+      .bind(b.name, b.categoryId, b.amount, b.paymentMethod, b.dayOfMonth, nextOn, nowIso(), id)
       .run()
   } catch (e) {
     if (retiredMeanwhile(e)) return c.json({ error: 'invalid_category' }, 400)

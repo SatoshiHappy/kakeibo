@@ -59,9 +59,9 @@ export async function runRecurring(env: Bindings, now: Date): Promise<RecurringR
     .bind(today)
     .all<Row>()
   const run: RecurringRun = { created: 0, skipped: 0, failed: 0 }
-  // 日付の古い順に 1 つずつ作る(上限に当たっても、1 つの登録だけが進み続けない)
+  // 日付の古い順に 1 つずつ作る(上限に当たっても、1 つの登録だけが進み続けない)。上限は試した回数で数える(D1 の呼び出しの上限のため)
   const queue = results.map((r) => ({ r, on: r.next_on, updatedAt: r.updated_at }))
-  while (run.created + run.skipped < MAX_TOTAL_PER_RUN) {
+  for (let tries = 0; tries < MAX_TOTAL_PER_RUN; tries++) {
     const live = queue.filter((q) => q.on <= today)
     if (live.length === 0) break
     const q = live.reduce((a, b) => (b.on < a.on || (b.on === a.on && b.r.id < a.r.id) ? b : a))
@@ -69,7 +69,7 @@ export async function runRecurring(env: Bindings, now: Date): Promise<RecurringR
     try {
       result = await createOne(env, q.r, q, now)
     } catch (e) {
-      // 1 つの登録の失敗で、ほかの登録と在庫の通知を止めない(次の日の判定でやり直す)
+      // 1 つの登録の失敗で、ほかの登録と在庫の通知を止めない。batch ごと戻るので next_on も進んでいない(次の日にやり直す)
       console.error('recurring create failed', q.r.id, q.on, e)
       run.failed += 1
       queue.splice(queue.indexOf(q), 1)
@@ -89,33 +89,33 @@ export async function runRecurring(env: Bindings, now: Date): Promise<RecurringR
 
 type CreateResult = { kind: 'created' | 'exists'; updatedAt: string } | { kind: 'changed' }
 
-/** 1 つ作る。先に next_on を進めて(読んだ時の next_on・updated_at・止めていないときだけ)その日を取り、取れたら支出を作る。
- * 支出の batch が UNIQUE 以外で失敗したら next_on を戻す(その月を落とさない) */
-async function createOne(env: Bindings, r: Row, cur: { on: string; updatedAt: string }, now: Date): Promise<CreateResult> {
+/** 1 つ作る。1 つの batch で、先に next_on を進め(読んだ時の next_on・updated_at・止めていないときだけ)、
+ * 進めたときだけ支出を作る(進めていなければ支出の client_request_id を NULL にして batch ごと失敗させる = 何も書かない)。
+ * その日の支出がもうある(UNIQUE)ときは作り直さず、next_on だけを進める */
+export async function createOne(env: Bindings, r: Row, cur: { on: string; updatedAt: string }, now: Date): Promise<CreateResult> {
   const db = env.DB
   const { on } = cur
   const next = nextAfter(on, r.day_of_month)
   const key = `recurring-${r.id}-${on}`
   const at = nowIso(now)
-  const claimed = await db
+  const claim = db
     .prepare('UPDATE recurring_expenses SET next_on = ?, updated_at = ? WHERE id = ? AND next_on = ? AND updated_at = ? AND ended_at IS NULL')
     .bind(next, at, r.id, on, cur.updatedAt)
-    .run()
-  if (claimed.meta.changes === 0) return { kind: 'changed' }
-
   const ref = { sql: '(SELECT id FROM expenses WHERE client_request_id = ?)', binds: [key] }
+  // 人の支出と同じに照合を掛ける(§1.17: 特別扱いしない)。書き込みは同じ batch に入れる(§3.0)
+  const matching = await reconcileStatements(env, [on], {
+    expense: { id: -1, spentOn: on, amount: r.amount, cardCompatible: r.card_compatible === 1, ref },
+  })
   try {
-    // 人の支出と同じに照合を掛ける(§1.17: 特別扱いしない)。書き込みは同じ batch に入れる(§3.0)
-    const matching = await reconcileStatements(env, [on], {
-      expense: { id: -1, spentOn: on, amount: r.amount, cardCompatible: r.card_compatible === 1, ref },
-    })
     await db.batch([
+      claim,
       db
         .prepare(
           `INSERT INTO expenses (origin, client_request_id, receipt_id, spent_on, store_name, payment_method, registered_by, created_at, updated_at, recurring_id)
-           VALUES ('person', ?, NULL, ?, ?, ?, ?, ?, ?, ?)`,
+           SELECT 'person', CASE WHEN EXISTS (SELECT 1 FROM recurring_expenses WHERE id = ? AND next_on = ? AND updated_at = ?) THEN ? END,
+                  NULL, ?, ?, ?, ?, ?, ?, ?`,
         )
-        .bind(key, on, r.name, r.payment_method, r.created_by, at, at, r.id),
+        .bind(r.id, next, at, key, on, r.name, r.payment_method, r.created_by, at, at, r.id),
       db
         .prepare(
           `INSERT INTO items (expense_id, position, name, category_id, tax_rate, base_amount, amount, stock_item_id, stock_quantity)
@@ -126,12 +126,13 @@ async function createOne(env: Bindings, r: Row, cur: { on: string; updatedAt: st
     ])
     return { kind: 'created', updatedAt: at }
   } catch (e) {
-    // その日の支出がもうある(人が次に作る日を作った日に戻した・同時に走った)。作り直さず、進めた next_on はそのまま
-    if (e instanceof Error && e.message.includes('UNIQUE constraint failed: expenses.client_request_id')) return { kind: 'exists', updatedAt: at }
-    await db
-      .prepare('UPDATE recurring_expenses SET next_on = ?, updated_at = ? WHERE id = ? AND next_on = ? AND updated_at = ?')
-      .bind(on, cur.updatedAt, r.id, next, at)
-      .run()
+    const msg = e instanceof Error ? e.message : ''
+    if (msg.includes('NOT NULL constraint failed: expenses.client_request_id')) return { kind: 'changed' }
+    if (msg.includes('UNIQUE constraint failed: expenses.client_request_id')) {
+      // その日の支出がもうある(次に作る日を作った日に戻した・同時に走った)。作り直さず進める(止まらない)
+      const res = await claim.run()
+      return res.meta.changes === 1 ? { kind: 'exists', updatedAt: at } : { kind: 'changed' }
+    }
     throw e
   }
 }

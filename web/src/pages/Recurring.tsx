@@ -14,7 +14,7 @@ type RecurringResponse = {
   paymentMethods: { code: string; label: string }[]
   today: string
 }
-type Draft = Omit<Recurring, 'id' | 'nextOn'> & { nextOn: string | null }
+type Draft = Omit<Recurring, 'id' | 'nextOn'> & { nextOn: string | null; baseNextOn?: string }
 
 /** 保存の後に読み直す(一覧と、作った支出が出る画面) */
 const refetch = () => refetchAfterSave({ predicate: (x) => x.queryKey[0] === PATH })
@@ -95,7 +95,7 @@ function RecurringDialog({
   target: Recurring | 'new' | null
   data: RecurringResponse
   onClose: () => void
-  onStopError: (message: string) => void
+  onStopError: (message: string | null) => void
 }) {
   const ref = useRef<HTMLDialogElement>(null)
   const first = useRef<HTMLInputElement>(null)
@@ -119,7 +119,7 @@ function RecurringDialog({
   const save = useMutation({
     mutationFn: async (v: Draft) => {
       if (item === null) return api.request(PATH, { method: 'POST', json: { clientRequestId: requestId.current, ...v } })
-      return api.request(`${PATH}/${item.id}`, { method: 'PUT', json: v })
+      return api.request(`${PATH}/${item.id}`, { method: 'PUT', json: { ...v, baseNextOn: item.nextOn } })
     },
     onSuccess: () => onClose(),
     onError: (e) => setError(errorText(e)),
@@ -129,7 +129,9 @@ function RecurringDialog({
   // 止めるは断られて直す入力が無いので、押した時点で一覧から外して閉じ、失敗したら戻して知らせる(基盤 §2.3)
   const stop = useMutation({
     mutationFn: async (id: number) => api.request(`${PATH}/${id}`, { method: 'DELETE' }),
-    onMutate: (id) => {
+    onMutate: async (id) => {
+      await qc.cancelQueries({ queryKey: [PATH] }) // 読み込み中の古い一覧で、外した登録が戻らないように
+      onStopError(null)
       const before = qc.getQueryData<RecurringResponse>([PATH])
       qc.setQueryData<RecurringResponse>([PATH], (d) => d && { ...d, items: d.items.filter((i) => i.id !== id) })
       onClose()
@@ -145,6 +147,12 @@ function RecurringDialog({
   const submit = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     const f = new FormData(e.currentTarget)
+    const nextOn = String(f.get('nextOn') ?? '') || null
+    // 口と同じ規則: 日を変えたときだけ今日以後(作り残しで過ぎた日は、変えなければそのままでよい)
+    if (nextOn !== null && nextOn !== item?.nextOn && nextOn < data.today) {
+      setError('次に作る日は今日以後にしてください。')
+      return
+    }
     setError(null)
     save.mutate({
       name: String(f.get('name')).trim(),
@@ -152,7 +160,7 @@ function RecurringDialog({
       categoryId: Number(f.get('categoryId')),
       paymentMethod: String(f.get('paymentMethod')),
       dayOfMonth: Number(f.get('dayOfMonth')),
-      nextOn: String(f.get('nextOn') ?? '') || null,
+      nextOn,
     })
   }
 
@@ -196,7 +204,7 @@ function RecurringDialog({
           </label>
           <label className="fld">
             <span>{item ? '次に作る日' : '最初に作る日(空なら今日以後で最初のその日)'}</span>
-            <input name="nextOn" type="date" required={item !== null} min={item && item.nextOn < data.today ? item.nextOn : data.today} defaultValue={item?.nextOn ?? ''} />
+            <input name="nextOn" type="date" required={item !== null} min={item ? undefined : data.today} defaultValue={item?.nextOn ?? ''} />
           </label>
           {error && (
             <p className="ferr" role="alert">

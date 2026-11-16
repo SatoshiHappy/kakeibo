@@ -1,7 +1,7 @@
 // 毎月決まった支出(データと照合 §1.17・表 Q・§4.12)。表 Q の各行と、月末・日 31・止まっていた日の分の境
 import { env } from 'cloudflare:workers'
 import { beforeEach, describe, expect, it } from 'vitest'
-import { dateIn, firstOn, MAX_TOTAL_PER_RUN, nextAfter, runRecurring } from '../worker/recurring'
+import { createOne, dateIn, firstOn, MAX_TOTAL_PER_RUN, nextAfter, runRecurring } from '../worker/recurring'
 import type { Bindings } from '../worker/types'
 import { accessToken, addUser, request, serveTestCerts } from './helpers'
 
@@ -97,6 +97,18 @@ describe('表 Q 毎月決まった支出を作るか', () => {
     expect(await runRecurring(env as unknown as Bindings, at('2026-10-27'))).toEqual({ created: 1, skipped: 1, failed: 0 })
     expect((await made(id)).map((r) => r.spent_on)).toEqual(['2026-09-27', '2026-10-27'])
     expect(await nextOn(id)).toBe('2026-11-27')
+  })
+
+  it('Q1: 読んだ後に直された・止められた登録からは作らない(何も書かず next_on も変えない)', async () => {
+    const id = await seed({ day: 27, nextOn: '2026-10-27' })
+    const row = { id, name: '家賃', category_id: 4, amount: 101500, payment_method: 'bank_transfer', day_of_month: 27, next_on: '2026-10-27', updated_at: '2000-01-01T00:00:00Z', created_by: 1, card_compatible: 0 }
+    // 読んだ時の updated_at と違う = 読んだ後に直された
+    expect(await createOne(env as unknown as Bindings, row, { on: '2026-10-27', updatedAt: '2000-01-01T00:00:00Z' }, at('2026-10-27'))).toEqual({ kind: 'changed' })
+    // 止められた
+    await db.prepare("UPDATE recurring_expenses SET ended_at = '2026-10-26T00:00:00Z' WHERE id = ?").bind(id).run()
+    expect(await createOne(env as unknown as Bindings, row, { on: '2026-10-27', updatedAt: '2026-01-01T00:00:00Z' }, at('2026-10-27'))).toEqual({ kind: 'changed' })
+    expect(await made(id)).toEqual([])
+    expect(await nextOn(id)).toBe('2026-10-27')
   })
 
   it('Q2: next_on が明日なら作らない(境: 今日の前日まで作り、今日の翌日は作らない)', async () => {
@@ -204,9 +216,19 @@ describe('毎月決まった支出の口(§4.12)', () => {
     expect(await (await put({ nextOn: '2026-08-28' })).json()).toEqual({ error: 'past_date' })
   })
 
+  it('直す小窓を開いている間に次に作る日が進んでも、日を直していなければ進んだ日を残す(戻さない)', async () => {
+    const id = await seed({ day: 27, nextOn: '2026-08-27' })
+    await db.prepare("UPDATE recurring_expenses SET next_on = '2026-09-27' WHERE id = ?").bind(id).run() // Cron が進めた
+    const res = await request(`/api/recurring/${id}`, json('PUT', { ...base, amount: 95000, nextOn: '2026-08-27', baseNextOn: '2026-08-27' }))
+    expect(res.status).toBe(200)
+    expect(await nextOn(id)).toBe('2026-09-27')
+  })
+
   it('費目の守り: やめた費目で登録はできない(DB でも止まる)。未分類を使う登録があっても、未分類をやめるのは system_category', async () => {
     await db.prepare("UPDATE categories SET retired_at = '2026-01-01T00:00:00Z' WHERE id = 7").run()
     await expect(seed({ day: 1, nextOn: '2030-01-01', category: 7 })).rejects.toThrow(/recurring expense category retired/)
+    const ok = await seed({ day: 1, nextOn: '2030-01-01', category: 3 })
+    await expect(db.prepare('UPDATE recurring_expenses SET category_id = 7 WHERE id = ?').bind(ok).run()).rejects.toThrow(/recurring expense category retired/)
     const unc = (await db.prepare("SELECT category_id FROM system_categories WHERE role = 'uncategorized'").first<{ category_id: number }>())!.category_id
     await seed({ day: 1, nextOn: '2030-01-01', category: unc })
     const res = await request(`/api/categories/${unc}`, json('PATCH', { retired: true }))
