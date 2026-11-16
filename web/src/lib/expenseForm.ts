@@ -58,6 +58,8 @@ export type ExpenseDetail = {
     stockQuantity: number | null
   }[]
   adjustments: { kind: 'discount' | 'tax'; amount: number; taxRate: Rate }[]
+  /** 結んだカード明細の行(差の無い自動の結びもここで見て外せる) */
+  charges: { id: number; usedOn: string; merchant: string; amount: number | null }[]
   amount: number
   /** 端末に残した入力が、この版の支出から始めたものかを見分ける(表 V の V6) */
   updatedAt: string

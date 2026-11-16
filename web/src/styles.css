@@ -47,6 +47,8 @@ b { font-weight: 700; }
 .panel { background: var(--bg); border-radius: var(--r-card); }
 .lrow { display: flex; justify-content: space-between; align-items: center; gap: 8px; min-height: var(--target-size); padding: 0 12px; border-top: 1px solid var(--border); color: var(--fg); }
 .panel > .lrow:first-child { border-top: 0; }
+.lrow.linked { flex-wrap: wrap; padding-block: 6px; }
+.lrow.linked .textbtn { margin-left: auto; }
 .lrow .mi { display: flex; align-items: center; gap: 10px; }
 .note { color: var(--muted); font-size: 12px; margin: 0; }
 

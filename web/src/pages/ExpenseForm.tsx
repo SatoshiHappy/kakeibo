@@ -15,6 +15,7 @@ import {
   isNegativeYen,
   parseYen,
   readFailure,
+  type ExpenseDetail,
   startOf,
   toBody,
   totalLine,
@@ -28,7 +29,7 @@ import {
   type Mode,
   type Rate,
 } from '../lib/expenseForm'
-import { yen } from '../lib/format'
+import { shortDate, yen } from '../lib/format'
 import { api, refetchAfterSave, useApiQuery } from '../lib/query'
 
 const POLL_MS = 5000
@@ -417,6 +418,7 @@ function Editor(props: {
           ))}
         </ul>
       )}
+      {mode.kind === 'expense' && data.expense && data.expense.charges.length > 0 && <LinkedCharges expenseId={data.expense.id} charges={data.expense.charges} formPath={pathOf(mode)} />}
       {mode.kind === 'expense' && (
         <button className="sbtn dangerbtn" type="button" disabled={busy} onClick={() => setConfirm('delete')}>
           この支出を消す
@@ -683,6 +685,61 @@ function Photos({ receiptId, count, text, children }: { receiptId: number; count
       </div>
       <Viewer src={shown === null ? null : `/api/receipts/${receiptId}/images/${shown}`} label={`レシートの写真 ${shown ?? ''} 枚目`} onClose={() => setShown(null)} />
     </div>
+  )
+}
+
+/** 結んだカード明細の行と「この明細とは別の買い物」(差の無い自動の結びも人が外せる = 要求「照合」。2026-11-17 ユーザー回答)。
+ * 外すのは確かめるの「別の買い物」と同じ口(POST /api/review/reject)。支出の版は進まないので、直している入力はそのまま保存できる */
+function LinkedCharges({ expenseId, charges, formPath }: { expenseId: number; charges: ExpenseDetail['charges']; formPath: string }) {
+  const [target, setTarget] = useState<number | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const reject = useMutation({
+    mutationFn: (chargeId: number) => api.request('/api/review/reject', { method: 'POST', json: { chargeId, expenseId } }),
+    onSuccess: () => setError(null),
+    onError: (e) => setError(errorText(e)),
+    onSettled: () => {
+      void refetchAfterSave({ queryKey: [formPath] })
+      void refetchLists()
+    },
+  })
+  return (
+    <section className="panel" aria-label="結んだカード明細">
+      <h2>
+        <span>結んだカード明細</span>
+      </h2>
+      <ul className="plain">
+        {charges.map((c) => (
+          <li key={c.id} className="lrow linked">
+            <span className="mi">
+              <span>
+                {shortDate(c.usedOn)} {c.merchant}
+              </span>
+            </span>
+            <b className="num">{c.amount === null ? '—' : yen(c.amount)}</b>
+            <button className="textbtn" type="button" disabled={reject.isPending} onClick={() => setTarget(c.id)}>
+              この明細とは別の買い物
+            </button>
+          </li>
+        ))}
+      </ul>
+      {error && (
+        <p className="ferr" role="alert">
+          {error}
+        </p>
+      )}
+      <Confirm
+        open={target !== null}
+        title="この明細とは別の買い物にしますか?"
+        body="この明細の行とこの支出の結びを外し、また候補に出しません。明細の行は「明細から」の支出になります。"
+        action="別の買い物"
+        busy={reject.isPending}
+        onClose={() => setTarget(null)}
+        onAction={() => {
+          if (target !== null) reject.mutate(target)
+          setTarget(null)
+        }}
+      />
+    </section>
   )
 }
 

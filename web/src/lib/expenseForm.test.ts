@@ -122,6 +122,7 @@ describe('表 V 確かめて保存の画面の始まり', () => {
     const expense = {
       id: 9,
       origin: 'person' as const,
+      charges: [],
       receiptId: null,
       spentOn: '2026-11-02',
       storeName: '薬局',
@@ -145,7 +146,7 @@ describe('表 V 確かめて保存の画面の始まり', () => {
     expect(usableStored('V1', { ...stored, baseUpdatedAt: undefined }, null)).toMatchObject({ storeName: '直しかけ' })
   })
   it('V7: 明細の支出は入力を出さない(費目だけ直す画面)', () => {
-    const expense = { id: 9, origin: 'statement_purchase' as const, receiptId: null, spentOn: '2026-11-02', storeName: 'x', paymentMethod: 'rakuten_card', items: [], adjustments: [], amount: 0, updatedAt: '2026-11-02T00:00:00Z' }
+    const expense = { id: 9, origin: 'statement_purchase' as const, charges: [], receiptId: null, spentOn: '2026-11-02', storeName: 'x', paymentMethod: 'rakuten_card', items: [], adjustments: [], amount: 0, updatedAt: '2026-11-02T00:00:00Z' }
     expect(startOf({ kind: 'expense', expenseId: 9 }, { ...base, expense }, NOW).row).toBe('V7')
   })
 })
