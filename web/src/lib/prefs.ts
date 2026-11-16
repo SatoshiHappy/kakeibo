@@ -12,11 +12,9 @@ export const KINDS: { code: string; label: string }[] = [
 export const kindLabel = (code: string) => KINDS.find((k) => k.code === code)?.label ?? code
 
 /** 予算の計と種類ごとの計(やめた費目は数えない。0 の種類は出さない) */
-export function budgetTotals(cats: PrefCategory[]) {
-  const live = cats.filter((c) => !c.retired)
-  const total = live.reduce((a, c) => a + (c.budget ?? 0), 0)
-  const byKind = KINDS.map((k) => ({ ...k, amount: live.filter((c) => c.kind === k.code).reduce((a, c) => a + (c.budget ?? 0), 0) })).filter((k) => k.amount > 0)
-  return { total, byKind }
+/** 予算の計: やめていない毎月変わる費目の予算の合計(ホームの「予算」と同じ範囲。固定費・臨時は予算を持たない = §4.11) */
+export function budgetTotal(cats: PrefCategory[]) {
+  return cats.filter((c) => !c.retired && c.kind === 'variable').reduce((a, c) => a + (c.budget ?? 0), 0)
 }
 
 /** 予算の入力欄の値: 空なら null(予算なし)、0 以上の整数ならその額、ほかは読めない(undefined) */

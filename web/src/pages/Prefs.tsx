@@ -5,7 +5,7 @@ import { Screen, TopBar } from '../components/Shell'
 import { ApiError } from '../lib/api'
 import { currentMonth, yen } from '../lib/format'
 import { api, refetchAfterSave, useApiQuery } from '../lib/query'
-import { budgetTotals, KINDS, kindLabel, moveId, parseBudget, type PrefCategory, type PrefsResponse } from '../lib/prefs'
+import { budgetTotal, KINDS, kindLabel, moveId, parseBudget, type PrefCategory, type PrefsResponse } from '../lib/prefs'
 
 /** 予算・費目が変わると古くなる画面(ホーム・推移・総計・一覧・確かめて保存) */
 const refetchAll = () =>
@@ -20,6 +20,7 @@ function errorText(e: unknown) {
   if (!(e instanceof ApiError) || e.status === null) return '通信できませんでした。通信のある所でもう一度入れてください。'
   if (e.code === 'duplicate_name') return '同じ名前の費目があります。'
   if (e.code === 'system_category') return 'この費目はやめられません(未分類か、自動の規則が使っています)。'
+  if (e.code === 'budget_not_variable') return 'この費目は固定費か臨時になったので、予算を入れられません。読み直してください。'
   if (e.code === 'used_by_recurring') return '毎月決まった支出がこの費目を使っています。先にメニューの「毎月決まった支出」で止めるか、費目を変えてください。'
   return '保存できませんでした。もう一度入れてください。'
 }
@@ -86,7 +87,7 @@ export function Prefs() {
   }
 
   const live = q.data?.categories.filter((c) => !c.retired) ?? []
-  const t = budgetTotals(live)
+  const total = budgetTotal(live)
   return (
     <Screen label="費目と月の予算" tabs={false} top={<TopBar title="費目と月の予算" left={{ kind: 'back', to: '/menu', label: 'メニューに戻る' }} />}>
       {error && (
@@ -101,8 +102,8 @@ export function Prefs() {
         <section className="panel" aria-label="月の予算">
           <p className="note pad top">入力欄を離れると保存し、今月({Number(month.slice(5, 7))}月)から効きます。前の月は当時の予算のまま。</p>
           <h2>
-            <span className="num">計 {yen(t.total)}</span>
-            <span className="num faint">{t.byKind.map((k) => `${k.label} ${yen(k.amount)}`).join(' · ')}</span>
+            <span>毎月変わる費目の計</span>
+            <span className="num">{yen(total)}</span>
           </h2>
           <ul className="plain sgrid">
             {live.map((c) =>
@@ -111,11 +112,19 @@ export function Prefs() {
                   <span className="slabel">{c.name}</span>
                   <span className="sub">消せない・予算なし</span>
                 </li>
+              ) : c.kind !== 'variable' ? (
+                // 固定費・臨時は予算を持たない(額が決まっている・一度きりなので比べない。§4.11)
+                <li key={c.id} className="scard fixed">
+                  <span className="slabel">
+                    {c.name}
+                    <span className="fxtag">{kindLabel(c.kind)}</span>
+                  </span>
+                  <span className="sub">予算なし</span>
+                </li>
               ) : (
                 <li key={c.id} className="scard">
                   <label htmlFor={`bud-${c.id}`} className="slabel">
                     {c.name}
-                    {c.kind !== 'variable' && <span className="fxtag">{kindLabel(c.kind)}</span>}
                   </label>
                   <span className="yen">
                     <span aria-hidden="true">¥</span>

@@ -198,6 +198,21 @@ describe('集計と予算', () => {
   })
 })
 
+describe('予算は毎月変わる費目だけ(§4.11)', () => {
+  it('固定費・臨時の費目への予算は 409 budget_not_variable(額を消す null も)。無い費目は 400 invalid_category が先', async () => {
+    const put = async (categoryId: number, amount: number | null) => {
+      const res = await request('/api/budgets', json('PUT', { categoryId, fromMonth: '2026-11', amount }))
+      return [res.status, (await res.json<{ error?: string; ok?: boolean }>()).error ?? 'ok']
+    }
+    expect(await put(4, 101500)).toEqual([409, 'budget_not_variable']) // 家賃(固定費)
+    expect(await put(14, 30000)).toEqual([409, 'budget_not_variable']) // 臨時
+    expect(await put(4, null)).toEqual([409, 'budget_not_variable'])
+    expect(await put(9999, 100)).toEqual([400, 'invalid_category'])
+    expect(await put(1, 30000)).toEqual([200, 'ok'])
+    expect(await env.DB.prepare("SELECT count(*) AS n FROM budgets WHERE category_id IN (4, 14) AND from_month = '2026-11'").first<{ n: number }>()).toEqual({ n: 0 })
+  })
+})
+
 describe('費目と予算の画面の口(データと照合 §4.11)', () => {
   type Prefs = { month: string; categories: { id: number; name: string; kind: string; retired: boolean; systemRole: string | null; budget: number | null }[] }
   it('やめた費目も返し、その月に効く予算を添える(やめると、やめた月から予算なし。前の月は当時の予算のまま)', async () => {

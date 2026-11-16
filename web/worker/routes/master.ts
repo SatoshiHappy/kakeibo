@@ -131,17 +131,17 @@ master.put('/budgets', async (c) => {
     .safeParse(await c.req.json().catch(() => undefined))
   if (!parsed.success) return c.json({ error: 'invalid_body' }, 400)
   const b = parsed.data
-  try {
-    await c.env.DB.prepare(
-      `INSERT INTO budgets (category_id, from_month, amount) VALUES (?, ?, ?)
-       ON CONFLICT (category_id, from_month) DO UPDATE SET amount = excluded.amount`,
-    )
-      .bind(b.categoryId, b.fromMonth, b.amount)
-      .run()
-  } catch (e) {
-    if (e instanceof Error && e.message.includes('FOREIGN KEY constraint failed')) return c.json({ error: 'invalid_category' }, 400)
-    throw e
-  }
+  // 予算は毎月変わる費目だけ(固定費・臨時は比べない。§4.11・2026-11-17 ユーザー回答)。結果の優先順: 体 → 費目が無い → 種類
+  const cat = await c.env.DB.prepare('SELECT kind FROM categories WHERE id = ?').bind(b.categoryId).first<{ kind: string }>()
+  if (!cat) return c.json({ error: 'invalid_category' }, 400)
+  if (cat.kind !== 'variable') return c.json({ error: 'budget_not_variable' }, 409)
+  // 種類は読んだ後に変わりうるが、変わっても予算の行が残るだけ(固定費・臨時の予算はどこでも使わない)
+  await c.env.DB.prepare(
+    `INSERT INTO budgets (category_id, from_month, amount) VALUES (?, ?, ?)
+     ON CONFLICT (category_id, from_month) DO UPDATE SET amount = excluded.amount`,
+  )
+    .bind(b.categoryId, b.fromMonth, b.amount)
+    .run()
   return c.json({ ok: true })
 })
 

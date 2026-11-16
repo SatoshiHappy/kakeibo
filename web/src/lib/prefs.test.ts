@@ -1,16 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { budgetTotals, moveId, parseBudget, type PrefCategory } from './prefs'
+import { budgetTotal, moveId, parseBudget, type PrefCategory } from './prefs'
 
 const c = (id: number, kind: string, budget: number | null, retired = false): PrefCategory => ({ id, name: `c${id}`, kind, retired, systemRole: null, budget })
 
 describe('予算の計', () => {
-  it('やめていない費目の予算を足し、種類ごとの計は 0 の種類を出さない', () => {
-    const t = budgetTotals([c(1, 'variable', 65000), c(2, 'variable', null), c(4, 'fixed', 101500), c(14, 'extra', null), c(9, 'variable', 999, true)])
-    expect(t.total).toBe(166500)
-    expect(t.byKind.map((k) => [k.label, k.amount])).toEqual([
-      ['毎月変わる', 65000],
-      ['固定費', 101500],
-    ])
+  it('やめていない毎月変わる費目の予算だけを足す(固定費・臨時・やめた費目に残った予算は数えない)', () => {
+    expect(budgetTotal([c(1, 'variable', 65000), c(2, 'variable', null), c(4, 'fixed', 101500), c(14, 'extra', 3000), c(9, 'variable', 999, true)])).toBe(65000)
   })
 })
 
