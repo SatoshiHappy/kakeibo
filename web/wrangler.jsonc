@@ -1,0 +1,40 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "kakeibo",
+  "main": "./worker/index.ts",
+  "compatibility_date": "2026-11-14",
+  "upload_source_maps": true,
+  // Version URL は Access の外に出うるので切る(docs/設計/基盤.md §3.2)
+  "preview_urls": false,
+  "assets": {
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api/*"]
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "kakeibo",
+      // 本番の D1(2026-11-16 に `wrangler d1 create kakeibo --location=apac` で作った)
+      "database_id": "3cb56bf1-11c8-4ed7-a49a-9f8a7efe138d",
+      // 手元の D1 の置き場の鍵(wrangler は手元でこちらを先に使う)。本番の ID を書く前からの手元のデータを指し続ける
+      "preview_database_id": "00000000-0000-0000-0000-000000000000",
+      "migrations_dir": "migrations"
+    }
+  ],
+  "r2_buckets": [{ "binding": "RECEIPTS", "bucket_name": "kakeibo-receipts" }],
+  "vars": {
+    // 本番は Access のチームのドメイン(https://<team>.cloudflareaccess.com)と AUD タグに書き換える
+    "ACCESS_TEAM_DOMAIN": "https://kakeibo-dev.cloudflareaccess.com",
+    "ACCESS_AUD": "kakeibo-dev-aud",
+    // AI のベンダーとモデル(基盤 §4)。API キーは `wrangler secret put ANTHROPIC_API_KEY` だけに置く
+    "AI_VENDOR": "anthropic",
+    "AI_MODEL": "claude-haiku-5-5",
+    // 照合の日の幅(設計 §3.0)
+    "MATCH_WINDOW_DAYS": "30",
+    // Web Push の VAPID の公開鍵(基盤 §7。2026-11-16 に本番の鍵の組を作った)。秘密鍵と subject は
+    // `wrangler secret put VAPID_PRIVATE_KEY`・`VAPID_SUBJECT` だけに置く(手元には無いので、手元の通知の判定は止まる)
+    "VAPID_PUBLIC_KEY": "BM41Jo16eGoQd7HS6-3dmhtOAsnGKbEe32xOve1ZWg0og3MfnUjB3Q73_5sPVk1-NlVS6DwrLQ8JGd7M0CzzsGY"
+  },
+  // 在庫の通知の判定(データと照合 表 N)。毎日 9 時(日本時間)= 0 時(UTC)
+  "triggers": { "crons": ["0 0 * * *"] }
+}

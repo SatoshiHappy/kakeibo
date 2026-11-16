@@ -1,0 +1,12 @@
+node_modules/
+dist/
+.wrangler/
+.dev.vars*
+.env*
+*.log
+docs/work/*/inputs/
+web/test-results/
+web/playwright-report/
+
+# 文書(docs/)は別のリポジトリで管理する(2026-11-16 ユーザー決定)
+/docs/
