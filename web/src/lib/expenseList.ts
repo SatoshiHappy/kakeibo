@@ -16,6 +16,8 @@ export type ListExpense = {
   noStatementAcked: boolean
   /** 「このまま」にした差(表 A-3 の 2 行)。無ければ null */
   acceptedDiff: number | null
+  /** 毎月決まった支出から自動で作った(データと照合 §1.17) */
+  recurring: boolean
   categoryIds: number[]
 }
 export type ListResponse = { expenses: ListExpense[]; categories: ListCategory[]; paymentMethods: ListPaymentMethod[] }

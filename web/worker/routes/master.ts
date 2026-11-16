@@ -101,6 +101,7 @@ master.patch('/categories/:id{[0-9]+}', async (c) => {
     const msg = e instanceof Error ? e.message : ''
     if (msg.includes('UNIQUE constraint failed')) return c.json({ error: 'duplicate_name' }, 409)
     if (msg.includes('system category cannot be retired')) return c.json({ error: 'system_category' }, 409)
+    if (msg.includes('category used by recurring expense')) return c.json({ error: 'used_by_recurring' }, 409)
     throw e
   }
   return c.json({ id })

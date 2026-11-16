@@ -14,7 +14,7 @@ const FILTERS: { key: Filter; label: string }[] = [
   { key: 'waiting', label: '明細待ち' },
 ]
 
-const PAY_ICON: Record<string, IconName> = { rakuten_card: 'card', credit: 'card', other_card: 'card', cash: 'cash', emoney: 'ic' }
+const PAY_ICON: Record<string, IconName> = { rakuten_card: 'card', credit: 'card', other_card: 'card', cash: 'cash', emoney: 'ic' } // ほかは名前を字で出す
 const MARK: Record<string, { icon: IconName; cls: string } | undefined> = {
   W1: { icon: 'clock', cls: 'st-wait' },
   W3: { icon: 'ok', cls: 'st-ok' },
@@ -122,14 +122,17 @@ function Row({ e, data }: { e: ListExpense; data: ListResponse }) {
   const m = MARK[mark.row]
   const pay = data.paymentMethods.find((p) => p.code === e.paymentMethod)
   const warn = e.categoryIds.some((id) => cat.get(id)?.systemRole === 'uncategorized')
-  const kind: IconName = e.origin !== 'person' ? 'card' : e.receiptId !== null ? 'camera' : 'pencil'
+  const kind: IconName = e.origin !== 'person' ? 'card' : e.recurring ? 'repeat' : e.receiptId !== null ? 'camera' : 'pencil'
   return (
     <Link className="erow" to={`/expenses/${e.id}`}>
       <span className="ithumb" aria-hidden="true">
         <Icon name={kind} size={18} />
       </span>
       <span className="emain">
-        <span className="store">{e.storeName || '店名なし'}</span>
+        <span className="store">
+          {e.storeName || '店名なし'}
+          {e.recurring && <span className="fxtag">自動</span>}
+        </span>
         <span className={`meta${warn ? ' warn' : ''}`}>{e.categoryIds.map((id) => cat.get(id)?.name ?? '?').join('・')}</span>
       </span>
       <span className="eright">

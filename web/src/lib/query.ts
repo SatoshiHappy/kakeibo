@@ -10,7 +10,7 @@ import { loginReloadUrl } from './login'
 export const PERSIST_MAX_AGE = 30 * 24 * 60 * 60 * 1000
 
 /** 応答の形を変えたら上げる(端末に残った古い形の応答を捨てる) */
-export const CACHE_VERSION = '4'
+export const CACHE_VERSION = '5'
 
 export const api = createApi({
   fetch: (input, init) => fetch(input, init),

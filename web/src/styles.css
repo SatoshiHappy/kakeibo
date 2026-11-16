@@ -309,3 +309,4 @@ details.retired > summary { min-height: var(--target-size); display: flex; align
 
 /* 画面の明るさの選び(≡ のメニュー。表 Y)。選びは上の .seg を使う */
 .scheme { flex-direction: column; align-items: stretch; gap: 6px; padding-block: 10px; }
+.recur { width: 100%; text-align: left; }

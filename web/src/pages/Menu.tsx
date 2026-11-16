@@ -35,6 +35,10 @@ export function Menu() {
           <span className="mi"><Icon name="gear" />費目と月の予算</span>
           <span className="sub">›</span>
         </Link>
+        <Link className="lrow" to="/recurring">
+          <span className="mi"><Icon name="repeat" />毎月決まった支出(家賃など)</span>
+          <span className="sub">›</span>
+        </Link>
         <Link className="lrow" to="/stock">
           <span className="mi"><Icon name="bell" />在庫の通知(この iPhone)</span>
           <span className="sub">›</span>

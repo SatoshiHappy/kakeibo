@@ -19,6 +19,7 @@ const e = (over: Partial<ListExpense>): ListExpense => ({
   diff: null,
   noStatementAcked: false,
   acceptedDiff: null,
+  recurring: false,
   categoryIds: [1],
   ...over,
 })

@@ -77,7 +77,7 @@ describe('確かめて保存の画面の口', () => {
     expect(f.expense).toBeNull()
     expect(f.categories.map((c) => c.id)).not.toContain(2)
     expect(f.categories.find((c) => c.systemRole === 'uncategorized')).toMatchObject({ name: '未分類' })
-    expect(f.paymentMethods.map((p) => p.code)).toEqual(['rakuten_card', 'credit', 'unknown', 'other_card', 'cash', 'emoney', 'point', 'other'])
+    expect(f.paymentMethods.map((p) => p.code)).toEqual(['rakuten_card', 'credit', 'unknown', 'other_card', 'cash', 'bank_transfer', 'emoney', 'point', 'other'])
   })
   it('下書き: レシートを返す(もう保存したなら expenseId が入る = V4 の手がかり)', async () => {
     const r = await receipt()

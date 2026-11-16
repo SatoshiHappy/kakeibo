@@ -83,6 +83,7 @@ type ExpenseRow = {
   charge_count: number
   charge_total: number | null
   updated_at: string
+  recurring_id: number | null
   no_statement_acked: number
   accepted_diff: number | null
 }
@@ -138,7 +139,7 @@ async function parse<T extends z.ZodType>(c: Context<AppEnv>, schema: T) {
 }
 
 const EXPENSE_SELECT = `
-  SELECT e.id, e.origin, e.receipt_id, e.spent_on, e.store_name, e.payment_method, e.registered_by, e.updated_at,
+  SELECT e.id, e.origin, e.receipt_id, e.spent_on, e.store_name, e.payment_method, e.registered_by, e.updated_at, e.recurring_id,
          u.display_name AS registered_by_name,
          (SELECT SUM(amount) FROM items WHERE expense_id = e.id) AS amount,
          (SELECT count(*) FROM card_charges WHERE expense_id = e.id) AS charge_count,
@@ -163,6 +164,8 @@ function presentRow(r: ExpenseRow) {
     // 確かめる一覧で人が片付けたか(表 W の W6・W7)
     noStatementAcked: r.no_statement_acked === 1,
     acceptedDiff: r.accepted_diff,
+    // 毎月決まった支出から自動で作った(一覧の「自動」の印。データと照合 §4.12)
+    recurring: r.recurring_id !== null,
   }
 }
 

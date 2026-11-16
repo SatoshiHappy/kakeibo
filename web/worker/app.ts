@@ -11,6 +11,7 @@ import { receipts } from './routes/receipts'
 import { review } from './routes/review'
 import { statements } from './routes/statements'
 import { push } from './routes/push'
+import { recurring } from './routes/recurring'
 import { stock } from './routes/stock'
 import type { AppEnv } from './types'
 
@@ -32,6 +33,7 @@ app.route('/statements', statements)
 app.route('/review', review)
 app.route('/stock', stock)
 app.route('/push', push)
+app.route('/recurring', recurring)
 app.route('/home', home)
 app.route('/expense-form', expenseForm)
 app.route('/', master)

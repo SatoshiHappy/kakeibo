@@ -6,6 +6,7 @@ import { Home } from './pages/Home'
 import { Import } from './pages/Import'
 import { List } from './pages/List'
 import { Menu } from './pages/Menu'
+import { RecurringPage } from './pages/Recurring'
 import { Placeholder } from './pages/Placeholder'
 import { Prefs } from './pages/Prefs'
 import { Review } from './pages/Review'
@@ -28,6 +29,7 @@ export const router = createBrowserRouter([
   { path: '/expenses/:id', element: <EditExpenseForm /> },
   // ≡ のメニューから
   { path: '/menu', element: <Menu /> },
+  { path: '/recurring', element: <RecurringPage /> },
   { path: '/review', element: <Review /> },
   { path: '/trend', element: <Trend /> },
   { path: '/totals', element: <Totals /> },
