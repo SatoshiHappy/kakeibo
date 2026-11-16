@@ -4,6 +4,7 @@ import { QueryClient, useQuery, type QueryFilters, type UseQueryOptions } from '
 import type { PersistedClient, Persister } from '@tanstack/react-query-persist-client'
 import { del, get, set } from 'idb-keyval'
 import { ApiError, createApi } from './api'
+import { currentMonth } from './format'
 import { loginReloadUrl } from './login'
 
 /** 端末に残した応答を使う期間。gcTime はこれ以上にする(公式の注意: gcTime < maxAge だと早く捨てられる) */
@@ -50,4 +51,11 @@ export function useApiQuery<T>(path: string, options: Omit<UseQueryOptions<T>, '
 export async function refetchAfterSave(filters: QueryFilters) {
   await queryClient.cancelQueries(filters)
   await queryClient.invalidateQueries(filters)
+  // 印(撮る・在庫・≡)は今月のホームの応答を読むだけ(開いた画面では取りに行かない = 1 画面 1 回)。
+  // ホームを開いていない画面で保存したときも印が新しくなるよう、読み直す対象に入っていれば保存の後に 1 回だけ取る
+  const badge = [`/api/home?month=${currentMonth()}`]
+  const hit = queryClient.getQueryCache().findAll(filters).some((q) => q.queryKey[0] === badge[0])
+  if (hit && !queryClient.getQueryCache().find({ queryKey: badge })?.isActive()) {
+    await queryClient.fetchQuery({ queryKey: badge, queryFn: () => api.request(badge[0]!), staleTime: 0 }).catch(() => undefined)
+  }
 }

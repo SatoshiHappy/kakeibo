@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { axisTicks, extraLabel, manYen, monthBreakdown, monthRows, periodMonths, totalsByKind } from './trend'
+import { axisTicks, extraLabel, extraRows, manYen, monthBreakdown, monthRows, periodMonths, totalsByKind } from './trend'
 
 const p = (month: string, categoryId: number, kind: string, amount: number) => ({ month, categoryId, kind, amount })
 
@@ -65,5 +65,15 @@ describe('推移の縦軸の目盛り', () => {
     expect(extraLabel(9_999)).toBe('¥9,999')
     expect(extraLabel(123_456)).toBe('¥12.3万')
     expect(extraLabel(-50_000)).toBe('−¥5万')
+  })
+})
+
+describe('臨時の札の段', () => {
+  it('間が札の幅に足りれば上の段、足りなければ下の段、どちらにも置けなければ出さない(境は幅ちょうど)', () => {
+    expect(extraRows([0, 5, 0, 0, 5, 0], 56)).toEqual([null, 0, null, null, 0, null])
+    expect(extraRows([5, 5, 5], 76)).toEqual([0, 0, 0])
+    expect(extraRows([5, 5, 5], 75)).toEqual([0, 1, 0])
+    expect(extraRows([5, 5, 5], 30)).toEqual([0, 1, null])
+    expect(extraRows([5, 5, 5, 5], 38)).toEqual([0, 1, 0, 1])
   })
 })

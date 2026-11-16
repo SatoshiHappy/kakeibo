@@ -89,7 +89,7 @@ describe('取り込み(表 C)', () => {
     const cat = await db.prepare('SELECT i.category_id, sc.role FROM items i JOIN system_categories sc ON sc.category_id = i.category_id WHERE i.expense_id = ?').bind(ch.expense_id).first()
     expect(cat).toMatchObject({ role: 'uncategorized' })
   })
-  it('「未分類」の行(system_categories)が無ければ取り込みを止め、何も書かない(§1.3)', async () => {
+  it('「未分類」の行(system_categories)が無ければ、品目の費目が NOT NULL で断られ batch ごと何も書かない(§1.3)', async () => {
     const row = (await db.prepare("SELECT category_id FROM system_categories WHERE role = 'uncategorized'").first<{ category_id: number }>())!
     // 消すのはトリガーが止める(起きない作り)ので、試しの間だけ外して無い状態を作る
     await db.prepare('DROP TRIGGER system_categories_no_delete').run()
@@ -97,8 +97,8 @@ describe('取り込み(表 C)', () => {
     try {
       const r = await importCsv([{ date: day(10), amount: 1200 }])
       expect(r.status).toBe(500)
-      expect(r.body).toMatchObject({ error: 'internal', check: 'uncategorized_missing' })
       expect(await charges()).toEqual([])
+      expect(await expenseRows()).toEqual([])
     } finally {
       await db.prepare("INSERT INTO system_categories (role, category_id) VALUES ('uncategorized', ?)").bind(row.category_id).run()
       await db.prepare("CREATE TRIGGER system_categories_no_delete BEFORE DELETE ON system_categories BEGIN SELECT RAISE(ABORT, 'system_categories is fixed'); END").run()

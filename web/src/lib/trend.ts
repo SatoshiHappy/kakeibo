@@ -35,7 +35,7 @@ export function totalsByKind(cats: TotalCategory[]) {
   })
 }
 
-/** 縦軸の目盛り: 0 と、最大を超える切りのよい額まで 3〜4 本(1 万・2 万・5 万…の刻み) */
+/** 縦軸の目盛り: 0 と、最大を超える切りのよい額まで 2〜4 本(1・2・5 の並びの刻み。千円〜百万円) */
 export function axisTicks(max: number): number[] {
   const steps = [1000, 2000, 5000, 10_000, 20_000, 50_000, 100_000, 200_000, 500_000, 1_000_000]
   const step = steps.find((s) => max / s <= 3) ?? steps.at(-1)!
@@ -51,4 +51,20 @@ export const extraLabel = (amount: number) => {
   const sign = amount < 0 ? '−' : ''
   const a = Math.abs(amount)
   return a >= 10_000 ? `${sign}¥${Number((a / 10_000).toFixed(1))}万` : `${sign}¥${a.toLocaleString('en-US')}`
+}
+
+/** 臨時の札の段(0 = 上・1 = その下)。近い月の札が重ならないよう 2 段に分け、どちらにも置けない札は出さない(印の点は出し、額は表とツールチップで見る)。
+ * gapPx = 隣の月の間の幅、width = 札の幅と間 */
+export function extraRows(extra: number[], gapPx: number, width = 76): (0 | 1 | null)[] {
+  const last = [-Infinity, -Infinity]
+  return extra.map((x, i) => {
+    if (x === 0) return null
+    for (const r of [0, 1] as const) {
+      if ((i - last[r]!) * gapPx >= width) {
+        last[r] = i
+        return r
+      }
+    }
+    return null
+  })
 }

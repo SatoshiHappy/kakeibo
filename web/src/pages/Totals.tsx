@@ -1,4 +1,5 @@
 // 費目ごとの総計(見本はモック 14 版の totals)。正本: 要求「費目ごとの総計」・データと照合 §4.4
+import { keepPreviousData } from '@tanstack/react-query'
 import { useState } from 'react'
 import { Screen, TopBar } from '../components/Shell'
 import { jstToday, shortDate, yen } from '../lib/format'
@@ -14,11 +15,13 @@ export function Totals() {
     { key: 'all', label: '通算', note: '記録のすべて' },
   ]
   const [picked, setPicked] = useState(choices[0]!.key)
-  const q = useApiQuery<{ firstYear: number | null; categories: TotalCategory[] }>(picked === 'all' ? '/api/summary/totals' : `/api/summary/totals?year=${picked}`)
+  // 期間を切り替える間も前の応答を出しておく(前の年の選びが消えないように)
+  const q = useApiQuery<{ firstYear: number | null; categories: TotalCategory[] }>(picked === 'all' ? '/api/summary/totals' : `/api/summary/totals?year=${picked}`, {
+    placeholderData: keepPreviousData,
+  })
   // 去年より前の記録があれば、その年も選べる(医療費控除の目安を前の年でも見る)
-  const [older, setOlder] = useState<number | null>(null)
-  if (older === null && q.data?.firstYear != null && q.data.firstYear < thisYear - 1) setOlder(q.data.firstYear)
-  const olderYears = older === null ? [] : Array.from({ length: thisYear - 1 - older }, (_, i) => thisYear - 2 - i)
+  const first = q.data?.firstYear ?? null
+  const olderYears = first === null || first >= thisYear - 1 ? [] : Array.from({ length: thisYear - 1 - first }, (_, i) => thisYear - 2 - i)
   const choice = choices.find((c) => c.key === picked) ?? { key: picked, label: `${picked}年`, note: `${picked}年 1/1〜12/31` }
 
   return (

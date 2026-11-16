@@ -187,7 +187,6 @@ export function startOf(mode: Mode, data: FormResponse, now = new Date(), manual
   }
 }
 
-/** 打った額を整数に。「1,280」「−20」「-20」を読む。読めなければ null */
 const MINUS = /^\s*[-−ー–]/
 
 /** 額の欄の字がマイナスか(「−」のボタンの押された印) */
@@ -196,6 +195,7 @@ export const isNegativeYen = (s: string) => MINUS.test(s)
 /** 額の欄の符号を変える(空なら「-」だけを置き、続けて数字を打てるようにする) */
 export const flipSign = (s: string) => (MINUS.test(s) ? s.replace(MINUS, '') : `-${s.trim()}`)
 
+/** 打った額を整数に。「1,280」「−20」「-20」を読む。読めなければ null */
 export function parseYen(s: string): number | null {
   const t = s.replace(/[,\s]/g, '').replace(/^[−ー–]/, '-')
   return /^-?\d+$/.test(t) ? Number(t) : null

@@ -6,7 +6,7 @@ import { Screen, TopBar } from '../components/Shell'
 import { trend, type CategoryAmount, type TrendPoint } from '../lib/categories'
 import { currentMonth, monthLabel, yen } from '../lib/format'
 import { useApiQuery } from '../lib/query'
-import { axisTicks, extraLabel, manYen, monthBreakdown, monthRows, periodMonths, type NamedCategory } from '../lib/trend'
+import { axisTicks, extraLabel, extraRows, manYen, monthBreakdown, monthRows, periodMonths, type NamedCategory } from '../lib/trend'
 
 const PERIODS = [6, 12, 24] as const
 type TrendResponse = { points: TrendPoint[]; lastMonth: CategoryAmount[]; categories: NamedCategory[] }
@@ -41,10 +41,16 @@ export function Trend() {
 }
 
 function TrendBody({ data, months, picked, onPick }: { data: TrendResponse; months: string[]; picked: string; onPick: (m: string) => void }) {
+  const [width, setWidth] = useState(360)
   const t = trend(months, data.points, data.lastMonth)
   const rows = monthRows(months, data.points)
   const stackTop = (i: number) => t.bands.reduce((a, b) => a + b.values[i]!, 0)
-  const chartData = months.map((m, i) => ({ month: short(m), ...Object.fromEntries(t.bands.map((b) => [b.key, b.values[i]!])), total: stackTop(i), extra: t.extra[i]! }))
+  // 横軸の値は年つきの YYYY-MM(24 か月では「11月」が 2 回出るので、字は tickFormatter で月だけにする)
+  const chartData = months.map((m, i) => ({ month: m, ...Object.fromEntries(t.bands.map((b) => [b.key, b.values[i]!])), total: stackTop(i), extra: t.extra[i]! }))
+  // 札の段: 描いた幅から隣の月の間を出す(縦軸 34px・右 8px・横軸の両端 28px を引く)
+  const gap = months.length > 1 ? (width - 34 - 8 - 56) / (months.length - 1) : width
+  const labelRows = extraRows(t.extra, gap)
+  const twoRows = labelRows.includes(1)
   const ticks = axisTicks(t.maxStack)
   const breakdown = monthBreakdown(picked, data.points, data.categories)
   const isCurrent = picked === currentMonth()
@@ -58,10 +64,10 @@ function TrendBody({ data, months, picked, onPick }: { data: TrendResponse; mont
         </h2>
         <p className="note pad">固定費と臨時の費目は積まない(臨時は紫の札に額)。線は月の合計</p>
         <div className="trendchart" role="img" aria-label={`${top}の毎月変わる支出の積み上げ。値は下の表`}>
-          <ResponsiveContainer width="100%" height={200}>
-            <ComposedChart data={chartData} margin={{ top: 28, right: 8, bottom: 0, left: 0 }}>
+          <ResponsiveContainer width="100%" height={twoRows ? 220 : 200} onResize={(w) => setWidth(w)}>
+            <ComposedChart data={chartData} margin={{ top: twoRows ? 48 : 28, right: 8, bottom: 0, left: 0 }}>
               <CartesianGrid vertical={false} style={{ stroke: 'var(--border)' }} />
-              <XAxis dataKey="month" tickLine={false} axisLine={false} padding={{ left: 28, right: 28 }} tick={{ fontSize: 11, style: { fill: 'var(--muted)' } }} interval="preserveStartEnd" />
+              <XAxis dataKey="month" tickFormatter={short} tickLine={false} axisLine={false} padding={{ left: 28, right: 28 }} tick={{ fontSize: 11, style: { fill: 'var(--muted)' } }} interval="preserveStartEnd" />
               <YAxis width={34} tickLine={false} axisLine={false} ticks={ticks} domain={[0, ticks.at(-1)!]} tickFormatter={manYen} tick={{ fontSize: 11, style: { fill: 'var(--muted)' } }} />
               <Tooltip cursor={{ style: { stroke: 'var(--faint)' } }} content={(p) => <TrendTip p={p} bands={t.bands.map((b) => b.key)} names={new Map(t.bands.map((b) => [b.key, b.name]))} />} />
               {/* 費目の帯を積む(月をまたいで累計しない)。帯の間は地の色の 2px の隙間(dataviz の印の決まり) */}
@@ -70,7 +76,9 @@ function TrendBody({ data, months, picked, onPick }: { data: TrendResponse; mont
               ))}
               <Line dataKey="total" name="合計" type="linear" isAnimationActive={false} dot={false} activeDot={{ r: 4, style: { fill: 'var(--fg)', stroke: 'var(--bg)', strokeWidth: 2 } }} style={{ fill: 'none', stroke: 'var(--fg)', strokeWidth: 2 }} />
               {/* 臨時は積まず、その月に印と額の札を付ける(要求「集計」。縦軸は臨時を除いた最大に合わせる) */}
-              {t.extra.map((x, i) => (x !== 0 ? <ReferenceDot key={i} x={chartData[i]!.month} y={stackTop(i)} ifOverflow="visible" shape={(d) => <ExtraMark cx={Number(d.cx)} cy={Number(d.cy)} amount={x} />} /> : null))}
+              {t.extra.map((x, i) =>
+                x !== 0 ? <ReferenceDot key={i} x={chartData[i]!.month} y={stackTop(i)} ifOverflow="visible" shape={(d) => <ExtraMark cx={Number(d.cx)} cy={Number(d.cy)} amount={x} row={labelRows[i] ?? null} />} /> : null,
+              )}
             </ComposedChart>
           </ResponsiveContainer>
         </div>
@@ -146,14 +154,16 @@ function TrendBody({ data, months, picked, onPick }: { data: TrendResponse; mont
 }
 
 /** 臨時の印: 合計の上から点線を伸ばし、上に「臨時 ¥9.8万」の札 */
-function ExtraMark({ cx, cy, amount }: { cx: number; cy: number; amount: number }) {
-  const label = `臨時 ${extraLabel(amount)}`
+function ExtraMark({ cx, cy, amount, row }: { cx: number; cy: number; amount: number; row: 0 | 1 | null }) {
+  // 札の段が無い(近い月の札で埋まっている)ときは、合計の上の点だけ(額は表とツールチップ)
+  if (row === null) return <circle cx={cx} cy={cy - 8} r={4} style={{ fill: 'var(--c9)', stroke: 'var(--bg)', strokeWidth: 2 }} aria-hidden="true" />
+  const top = 4 + row * 20
   return (
     <g aria-hidden="true">
-      <line x1={cx} x2={cx} y1={cy - 4} y2={22} style={{ stroke: 'var(--c9)', strokeWidth: 1.5, strokeDasharray: '2 2' }} />
-      <rect x={cx - 36} y={4} width={72} height={18} rx={9} style={{ fill: 'var(--c9)' }} />
-      <text x={cx} y={17} textAnchor="middle" className="rlab">
-        {label}
+      <line x1={cx} x2={cx} y1={cy - 4} y2={top + 18} style={{ stroke: 'var(--c9)', strokeWidth: 1.5, strokeDasharray: '2 2' }} />
+      <rect x={cx - 36} y={top} width={72} height={18} rx={9} style={{ fill: 'var(--c9)' }} />
+      <text x={cx} y={top + 13} textAnchor="middle" className="rlab">
+        {`臨時 ${extraLabel(amount)}`}
       </text>
     </g>
   )
@@ -162,11 +172,11 @@ function ExtraMark({ cx, cy, amount }: { cx: number; cy: number; amount: number 
 function TrendTip({ p, bands, names }: { p: TooltipContentProps<TooltipValueType, string | number>; bands: string[]; names: Map<string, string> }) {
   if (!p.active || !p.payload?.length) return null
   const row = p.payload[0]!.payload as Record<string, number | string>
-  const sum = bands.reduce((a, k) => a + Number(row[k] ?? 0), 0)
+  const sum = Number(row.total)
   return (
     <div className="tip">
       <b>
-        {String(row.month)} {yen(sum)}
+        {short(String(row.month))} {yen(sum)}
       </b>
       {[...bands].reverse().map((k) =>
         Number(row[k]) > 0 ? (
