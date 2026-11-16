@@ -8,6 +8,8 @@ export default defineConfig({
   testDir: 'e2e',
   fullyParallel: false,
   reporter: 'list',
+  // GitHub Actions では 1 回だけやり直す(やり直して通ったものは結果に flaky と出る)。手元ではやり直さない
+  retries: process.env.CI ? 1 : 0,
   // 手元の D1 は書き込み 1 回に約 0.6 秒かかり、2 つの端末の幅が同時に書くと順に待つ(2026-11-16 に測定)。既定の 5 秒では足りない
   expect: { timeout: 15_000 },
   // 同じ理由で、いくつもの画面を通る流れは既定の 30 秒を超えることがある

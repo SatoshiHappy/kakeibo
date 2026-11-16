@@ -1,0 +1,91 @@
+# push と pull request のたびに、web/CLAUDE.md の「検査のコマンド」を全部走らせる(2026-11-16 ユーザー決定)。
+# 速くするため、仕事を並べて走らせる: テスト・型・lint の 1 つと、E2E を端末の幅 2 つ × 2 分割の 4 つと、本番のビルドの E2E の 1 つ。
+# E2E の仕事はそれぞれ自分の手元の D1 を持つので、書き込みが互いを待たない。
+# 表の行の検査が設計の文書を読むので、テストの仕事だけ非公開の SatoshiHappy/kakeibo-docs を docs/ に読み込む
+# (読むだけのデプロイ鍵。秘密の半分は Actions の secret の DOCS_DEPLOY_KEY)。
+name: ci
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    working-directory: web
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/checkout@v7
+        with:
+          repository: SatoshiHappy/kakeibo-docs
+          ssh-key: ${{ secrets.DOCS_DEPLOY_KEY }}
+          path: docs
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci
+      - run: npm test
+      - run: npm run typecheck
+      - run: npm run lint
+
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        project: [iphone-17e-390, iphone-17-402]
+        shard: [1/2, 2/2]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci
+      - run: npx playwright install --with-deps webkit
+      - run: npm run dev:setup
+      - run: npx playwright test --project=${{ matrix.project }} --shard=${{ matrix.shard }}
+      - if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: e2e-${{ matrix.project }}-${{ strategy.job-index }}
+          path: web/test-results/
+          if-no-files-found: ignore
+          retention-days: 7
+
+  e2e-preview:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci
+      - run: npx playwright install --with-deps webkit
+      - run: npx playwright test -c playwright.preview.config.ts
+      - if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: e2e-preview
+          path: web/test-results/
+          if-no-files-found: ignore
+          retention-days: 7
