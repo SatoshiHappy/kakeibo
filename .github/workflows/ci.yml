@@ -43,7 +43,8 @@ jobs:
       - run: npm run lint
 
   e2e:
-    runs-on: ubuntu-latest
+    # Playwright の WebKit は ubuntu-latest(26.04)にまだ対応していない(2026-11-16 の CI で確かめた)。対応したら戻す
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     strategy:
       fail-fast: false
@@ -70,7 +71,8 @@ jobs:
           retention-days: 7
 
   e2e-preview:
-    runs-on: ubuntu-latest
+    # Playwright の WebKit は ubuntu-latest(26.04)にまだ対応していない(2026-11-16 の CI で確かめた)。対応したら戻す
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
