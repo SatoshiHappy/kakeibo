@@ -5,6 +5,7 @@ import { RouterProvider } from 'react-router/dom'
 import { withoutLoginParam } from './lib/login'
 import { CACHE_VERSION, PERSIST_MAX_AGE, persister, queryClient } from './lib/query'
 import { router } from './router'
+import './lib/theme' // 表 Y: 残した明暗を当て直し、ほかのタブの変更を受ける
 import './styles.css'
 
 // ログインのための読み込みの印を URL から消す(基盤 §2.3 の 1)

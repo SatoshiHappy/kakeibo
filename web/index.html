@@ -6,10 +6,10 @@
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="color-scheme" content="light dark" />
-    <meta name="theme-color" content="#F3F4F2" media="(prefers-color-scheme: light)" />
-    <meta name="theme-color" content="#121513" media="(prefers-color-scheme: dark)" />
+    <meta name="theme-color" content="#F3F4F2" media="(prefers-color-scheme: light)" data-scheme="light" />
+    <meta name="theme-color" content="#121513" media="(prefers-color-scheme: dark)" data-scheme="dark" />
     <!-- 表 Y: この端末で選んだ明暗を最初の描画の前に当てる(src/lib/theme.ts と同じ規則)。中身を変えたら public/_headers の CSP の sha256 も変える -->
-    <script>try{var v=localStorage.getItem('color-scheme');if(v==='light'||v==='dark'){document.querySelector('meta[name="color-scheme"]').content=v;document.querySelectorAll('meta[name="theme-color"]').forEach(function(m){m.content=v==='dark'?'#121513':'#F3F4F2'})}}catch(e){}</script>
+    <script>try{var v=localStorage.getItem('color-scheme');if(v==='light'||v==='dark'){document.querySelector('meta[name="color-scheme"]').content=v;document.querySelectorAll('meta[name="theme-color"]').forEach(function(m){m.media=m.dataset.scheme===v?'all':'not all'})}}catch(e){}</script>
     <link rel="manifest" href="/manifest.webmanifest" crossorigin="use-credentials" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />

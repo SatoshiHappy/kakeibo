@@ -1,7 +1,7 @@
 # 画面のファイルに付ける見出し(Cloudflare の静的ファイルの _headers。/api/* は Worker が付ける = worker/app.ts)
 # 外から読むのは Google Fonts だけ(index.html)。script-src の sha256 は index.html の明暗の小さな script(表 Y)の印。写真の下見は blob:、Service Worker は自前の /sw.js
 /*
-  Content-Security-Policy: default-src 'self'; script-src 'self' 'sha256-x7MkYG73+P7lC/36Z+H110WeWkdAinUypd/gFZg8JTY='; style-src 'self' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' blob: data:; connect-src 'self'; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'sha256-adIT1QL6AKkN9cw6OXmZYNqVaHd2C+w0bMAatQRld9c='; style-src 'self' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' blob: data:; connect-src 'self'; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'
   X-Content-Type-Options: nosniff
   Referrer-Policy: same-origin
   Permissions-Policy: geolocation=(), microphone=(), payment=()

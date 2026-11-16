@@ -26,3 +26,14 @@ test('ダークを選ぶと端末がライトでもダークになり、開き�
   await expect(page.getByRole('radio', { name: '自動(今はダーク)' })).toBeChecked()
   await expect.poll(() => ground(page)).toBe(DARK)
 })
+
+test('ほかのタブで選んだ明暗が、メニュー以外の画面を開いているタブにも当たる', async ({ page, context }) => {
+  await page.emulateMedia({ colorScheme: 'light' })
+  await page.goto('/')
+  const other = await context.newPage()
+  await other.goto('/menu')
+  await other.getByText('ダーク', { exact: true }).click()
+  await expect.poll(() => ground(page)).toBe(DARK)
+  await other.getByText(/^自動/).click()
+  await expect.poll(() => ground(page)).toBe(LIGHT)
+})

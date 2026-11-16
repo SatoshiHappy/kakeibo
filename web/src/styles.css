@@ -8,7 +8,7 @@
   --c1: light-dark(#2A78D6, #3987E5); --c2: light-dark(#EB6834, #D95926); --c3: light-dark(#1BAF7A, #199E70); --c4: light-dark(#EDA100, #C98500); --c5: light-dark(#E87BA4, #D55181); --c6: light-dark(#008300, #008300); --cfix: light-dark(#8C98A4, #7D8894); --c7: light-dark(#A3ADA6, #7A857E); --c8: light-dark(#CBD3CE, #4A554E); --c9: light-dark(#6250D6, #9085E9);
   --font: 'Noto Sans JP', 'Hiragino Sans', 'Yu Gothic', system-ui, sans-serif;
   --num: 'Inter', 'Noto Sans JP', system-ui, sans-serif;
-  --r: 10px; --r-card: 12px;
+  --r: 10px; --r-card: 12px; --r-sm: 8px;
   --target-size: 44px; /* 押す所(基盤 §2.1) */
 
   /* 表 Y: この端末の設定(index.html の meta を theme.ts が書き換える)で端末の明暗より優先する */
@@ -309,7 +309,7 @@ details.retired > summary { min-height: var(--target-size); display: flex; align
 .scheme { flex-wrap: wrap; margin: 0; padding-block: 6px; border-inline: 0; border-bottom: 0; min-inline-size: 0; }
 .scheme legend { float: left; padding: 0; }
 .seg { display: flex; gap: 2px; padding: 2px; border-radius: var(--r); background: var(--ground); margin-left: auto; }
-.seg label { position: relative; min-height: var(--target-size); min-width: var(--target-size); display: grid; place-items: center; padding: 0 10px; border-radius: 8px; font-size: 12px; color: var(--muted); cursor: pointer; }
+.seg label { position: relative; min-height: var(--target-size); min-width: var(--target-size); display: grid; place-items: center; padding: 0 10px; border-radius: var(--r-sm); font-size: 12px; color: var(--muted); cursor: pointer; }
 .seg input { position: absolute; inset: 0; margin: 0; opacity: 0; cursor: pointer; }
 .seg label:has(input:checked) { background: var(--bg); color: var(--fg); font-weight: 700; }
 .seg label:has(input:focus-visible) { outline: 2px solid var(--primary); outline-offset: 1px; }
