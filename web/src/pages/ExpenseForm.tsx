@@ -249,7 +249,15 @@ function Editor(props: {
         json: { ...b.body, clientRequestId: draft.clientRequestId, receiptId },
       })
       // 前に押した保存が届いていた(応答だけ落ちた)。その後に直した入力を捨てないよう、今の入力で直す
-      if (r.reused) await api.request(`/api/expenses/${r.id}`, { method: 'PUT', json: { ...b.body, baseUpdatedAt: r.updatedAt } })
+      if (r.reused) {
+        try {
+          await api.request(`/api/expenses/${r.id}`, { method: 'PUT', json: { ...b.body, baseUpdatedAt: r.updatedAt } })
+        } catch (e) {
+          // 前の保存は届いていて、その後にほかの人が直した。入れ直すと支出が 2 つになるので、一覧から開くよう知らせる
+          if (e instanceof ApiError && e.code === 'changed') throw new FormErrors(['この支出は前に押した保存で保存済みで、その後ほかの人が直しました。今の入力は保存していません。一覧から開いて直してください。'])
+          throw e
+        }
+      }
       return r
     },
     onMutate: () => setErrors([]),
@@ -273,6 +281,7 @@ function Editor(props: {
   const unlink = useMutation({
     mutationFn: (chargeId: number) => api.request('/api/review/reject', { method: 'POST', json: { chargeId, expenseId: data.expense!.id } }),
     onMutate: async (chargeId) => {
+      setErrors([])
       await qc.cancelQueries({ queryKey: [pathOf(mode)] })
       const before = qc.getQueryData<FormResponse>([pathOf(mode)])
       if (before?.expense) qc.setQueryData<FormResponse>([pathOf(mode)], { ...before, expense: { ...before.expense, charges: before.expense.charges.filter((c) => c.id !== chargeId) } })
