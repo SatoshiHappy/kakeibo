@@ -3,6 +3,8 @@ import { useMutation } from '@tanstack/react-query'
 import { del, get, set } from 'idb-keyval'
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router'
+import { Confirm } from '../components/Confirm'
+import { useModal } from '../components/useModal'
 import { Icon } from '../components/Icon'
 import { Screen, TopBar } from '../components/Shell'
 import { ApiError } from '../lib/api'
@@ -429,6 +431,7 @@ function Editor(props: {
       </div>
 
       <Confirm
+        danger
         open={confirm !== null}
         title={confirm === 'delete' ? 'この支出を消しますか?' : 'この下書きを捨てますか?'}
         body={
@@ -680,17 +683,6 @@ function Photos({ receiptId, count, text, children }: { receiptId: number; count
   )
 }
 
-function useModal(open: boolean) {
-  const ref = useRef<HTMLDialogElement>(null)
-  useEffect(() => {
-    const d = ref.current
-    if (!d) return
-    if (open && !d.open) d.showModal()
-    if (!open && d.open) d.close()
-  }, [open])
-  return ref
-}
-
 function Viewer({ src, label, onClose }: { src: string | null; label: string; onClose: () => void }) {
   const ref = useModal(src !== null)
   return (
@@ -703,25 +695,3 @@ function Viewer({ src, label, onClose }: { src: string | null; label: string; on
   )
 }
 
-function Confirm(props: { open: boolean; title: string; body: string; action: string; busy: boolean; onAction: () => void; onClose: () => void }) {
-  const ref = useModal(props.open)
-  const titleId = useId()
-  const keep = useRef<HTMLButtonElement>(null)
-  useEffect(() => {
-    if (props.open) keep.current?.focus()
-  }, [props.open])
-  return (
-    <dialog ref={ref} className="sheet" aria-labelledby={titleId} onClose={props.onClose}>
-      <h2 id={titleId}>{props.title}</h2>
-      <p className="note">{props.body}</p>
-      <div className="sheet-actions">
-        <button ref={keep} className="sbtn" type="button" onClick={props.onClose}>
-          やめる
-        </button>
-        <button className="pbtn dangerfill" type="button" disabled={props.busy} onClick={props.onAction}>
-          {props.action}
-        </button>
-      </div>
-    </dialog>
-  )
-}

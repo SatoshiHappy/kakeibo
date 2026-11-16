@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { cardOf, type Charge, type Expense } from './review'
+import { cardOf, type Charge, type Expense, confirmOf, type Action } from './review'
 
 const methods = [{ code: 'rakuten_card', label: '楽天カード' }]
 const ch = (id: number, usedOn = '2026-10-10', amount = 2640): Charge => ({ id, usedOn, merchant: '楽天ブックス', cardUser: '本人', amount })
@@ -44,5 +44,20 @@ describe('確かめるカード(表 L の項目ごと)', () => {
     const c = cardOf({ type: 'diff', expense: ex(5, '2026-10-14', 5000), diff: -150, charges: [ch(4, '2026-10-14', 4850)] }, methods)
     expect(c).toMatchObject({ key: 'diff:5', row: 'L4', question: '金額が ¥150 違います' })
     expect(c.actions.map((a) => a.label)).toEqual(['¥5,000 のまま確認済み', 'レシートを直す', '別の買い物'])
+  })
+})
+
+describe('確かめの小窓の文', () => {
+  it('決まる操作(結ぶ・別の買い物・どれでもない・確認済み 2 つ)には文があり、画面を移るだけの操作(直す・探す)には無い', () => {
+    const decided: Action[] = [
+      { kind: 'link', chargeId: 1, expenseId: 2, label: 'A と結ぶ' },
+      { kind: 'reject', pairs: [{ chargeId: 1, expenseId: 2 }], label: '別の買い物' },
+      { kind: 'none', chargeId: 1, label: 'どれでもない' },
+      { kind: 'ackNoStatement', expenseId: 2, label: 'カードで合っている(確認済み)' },
+      { kind: 'ackDiff', expenseId: 2, diff: 1, label: '¥100 のまま確認済み' },
+    ]
+    for (const a of decided) expect(confirmOf(a)?.title).toMatch(/\?$/)
+    expect(confirmOf({ kind: 'edit', expenseId: 2, label: '直す' })).toBeNull()
+    expect(confirmOf({ kind: 'search', by: { charge: 1 }, label: '探す' })).toBeNull()
   })
 })

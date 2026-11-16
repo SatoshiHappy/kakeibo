@@ -2,11 +2,12 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useId, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router'
+import { Confirm } from '../components/Confirm'
 import { Screen, TopBar } from '../components/Shell'
 import { ApiError } from '../lib/api'
 import { shortDate, yen } from '../lib/format'
 import { api, refetchAfterSave, useApiQuery } from '../lib/query'
-import { cardOf, type Action, type Card, type Charge, type Expense, type ReviewResponse } from '../lib/review'
+import { cardOf, confirmOf, type Action, type Card, type Charge, type Expense, type ReviewResponse } from '../lib/review'
 
 const PATH = '/api/review'
 type Search = { charge: number } | { expense: number }
@@ -70,11 +71,14 @@ export function Review() {
     onSettled: refetchAll,
   })
 
+  // 決まる操作は確かめの小窓を出してから送る(消す・捨てると同じ形。2026-11-17 ユーザー回答)
+  const [pending, setPending] = useState<{ card: Card; action: Action } | null>(null)
   const onAction = (card: Card, a: Action) => {
     if (a.kind === 'edit') navigate(`/expenses/${a.expenseId}?from=review`)
     else if (a.kind === 'search') setSearch({ card, by: a.by })
-    else act.mutate({ card, action: a })
+    else setPending({ card, action: a })
   }
+  const confirm = pending ? confirmOf(pending.action) : null
 
   const cards = q.data ? q.data.items.map((i) => cardOf(i, q.data.paymentMethods)) : []
   const right = (
@@ -114,7 +118,19 @@ export function Review() {
         onPick={(chargeId, expenseId) => {
           const card = search!.card
           setSearch(null)
-          act.mutate({ card, action: { kind: 'link', chargeId, expenseId, label: '' } })
+          setPending({ card, action: { kind: 'link', chargeId, expenseId, label: '結ぶ' } })
+        }}
+      />
+      <Confirm
+        open={confirm !== null}
+        title={confirm?.title ?? ''}
+        body={confirm?.body ?? ''}
+        action={pending?.action.label ?? ''}
+        busy={act.isPending}
+        onClose={() => setPending(null)}
+        onAction={() => {
+          if (pending) act.mutate(pending)
+          setPending(null)
         }}
       />
     </Screen>

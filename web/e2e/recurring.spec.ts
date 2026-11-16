@@ -30,5 +30,6 @@ test('毎月決まった支出を足して直し、止めると一覧から消�
 
   await row.click()
   await page.getByRole('dialog', { name: '毎月決まった支出を直す' }).getByRole('button', { name: /止める/ }).click()
+  await page.getByRole('dialog', { name: 'この毎月決まった支出を止めますか?' }).getByRole('button', { name: '止める', exact: true }).click()
   await expect(row).toHaveCount(0, { timeout: 15_000 })
 })

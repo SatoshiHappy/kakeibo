@@ -114,3 +114,22 @@ export function cardOf(item: ReviewItem, methods: { code: string; label: string 
     }
   }
 }
+
+/** 押すとすぐ決まる操作の確かめの小窓の文(2026-11-17 ユーザー回答: 全部の操作の前に確かめる)。直す・探すは画面を移るだけなので null */
+export function confirmOf(a: Action): { title: string; body: string } | null {
+  switch (a.kind) {
+    case 'link':
+      return { title: '明細の行と支出を結びますか?', body: '同じ買い物として記録し、カードで確認済みにします。間違えたときは、支出を直す画面の「この明細とは別の買い物」で外せます。' }
+    case 'reject':
+      return { title: '別の買い物にしますか?', body: 'この明細の行と支出は結ばず、この組をまた候補に出しません。明細の行は「明細から」の支出になります。' }
+    case 'none':
+      return { title: 'どの支出とも結びませんか?', body: '並んだ候補はどれもこの明細の行と結ばず、また候補に出しません。明細の行は「明細から」の支出になります。' }
+    case 'ackNoStatement':
+      return { title: 'カードで合っていると確認しますか?', body: '明細に無いままでよいとして、一覧から消します。' }
+    case 'ackDiff':
+      return { title: 'この額のまま確認済みにしますか?', body: '支出の額はレシートのままにします。差がまた変わったら、もう一度出ます。' }
+    case 'edit':
+    case 'search':
+      return null
+  }
+}

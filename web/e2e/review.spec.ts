@@ -66,6 +66,7 @@ test('L3 のカード: 探す小窓で明細の行が並び、「確認済み」
     await expect(card).toBeVisible()
 
     await card.getByRole('button', { name: 'カードで合っている(確認済み)' }).click()
+    await page.getByRole('dialog', { name: 'カードで合っていると確認しますか?' }).getByRole('button', { name: 'カードで合っている(確認済み)' }).click()
     await expect(card).toHaveCount(0)
     await page.reload()
     await expect(page.getByRole('region', { name: 'カードで払いましたか?' }).filter({ hasText: store })).toHaveCount(0)

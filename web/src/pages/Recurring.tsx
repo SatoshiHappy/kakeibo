@@ -1,6 +1,7 @@
 // 毎月決まった支出(家賃・ネット代など)。正本: データと照合 §1.17・表 Q・§4.12
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useId, useRef, useState, type FormEvent } from 'react'
+import { Confirm } from '../components/Confirm'
 import { Screen, TopBar } from '../components/Shell'
 import { ApiError } from '../lib/api'
 import { jstToday, yen } from '../lib/format'
@@ -102,6 +103,7 @@ function RecurringDialog({
   const requestId = useRef('')
   const titleId = useId()
   const [error, setError] = useState<string | null>(null)
+  const [confirmStop, setConfirmStop] = useState(false)
   const item = target !== 'new' ? target : null
 
   useEffect(() => {
@@ -215,7 +217,7 @@ function RecurringDialog({
             </p>
           )}
           {item && (
-            <button className="sbtn" type="button" disabled={stop.isPending} onClick={() => stop.mutate(item.id)}>
+            <button className="sbtn" type="button" disabled={stop.isPending} onClick={() => setConfirmStop(true)}>
               止める(作った支出は残ります)
             </button>
           )}
@@ -229,6 +231,19 @@ function RecurringDialog({
           </div>
         </form>
       )}
+      <Confirm
+        danger
+        open={confirmStop}
+        title="この毎月決まった支出を止めますか?"
+        body="次の月から支出を作りません。作った支出は残ります。止めた登録は戻せないので、また使うときは新しく登録します。"
+        action="止める"
+        busy={stop.isPending}
+        onClose={() => setConfirmStop(false)}
+        onAction={() => {
+          setConfirmStop(false)
+          if (item) stop.mutate(item.id)
+        }}
+      />
     </dialog>
   )
 }

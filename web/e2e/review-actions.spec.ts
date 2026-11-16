@@ -40,14 +40,24 @@ test('L1・L2・L4 のカード: 押したボタンどおりの要求を送り�
   const l1 = page.getByRole('region', { name: 'この明細は、どの支出の分?' })
   await expect(l1.getByText('同じ額で日付の近い支出が 2 件あります。')).toBeVisible()
   await l1.getByRole('button', { name: 'B と結ぶ' }).click()
+  // 決まる操作は確かめの小窓を出す。「やめる」なら何も送らずカードも残る
+  const confirm = page.getByRole('dialog', { name: '明細の行と支出を結びますか?' })
+  await confirm.getByRole('button', { name: 'やめる' }).click()
+  await expect(confirm).toBeHidden()
+  await expect(l1).toBeVisible()
+  expect(sent).toEqual([])
+  await l1.getByRole('button', { name: 'B と結ぶ' }).click()
+  await confirm.getByRole('button', { name: 'B と結ぶ' }).click()
   await expect(l1).toHaveCount(0)
 
   const l2 = page.getByRole('region', { name: '明細から作った支出に、レシートが来ました' })
   await l2.getByRole('button', { name: '別の買い物' }).click()
+  await page.getByRole('dialog', { name: '別の買い物にしますか?' }).getByRole('button', { name: '別の買い物' }).click()
   await expect(l2).toHaveCount(0)
 
   const l4a = page.getByRole('region', { name: '金額が ¥100 違います' })
   await l4a.getByRole('button', { name: '¥5,000 のまま確認済み' }).click()
+  await page.getByRole('dialog', { name: 'この額のまま確認済みにしますか?' }).getByRole('button', { name: '¥5,000 のまま確認済み' }).click()
   await expect(l4a).toHaveCount(0)
 
   // 「レシートを直す」は確かめて保存へ移るだけ(要求は送らない)
@@ -67,6 +77,7 @@ test('L1 の「どれでもない」は明細の行だけを送る', async ({ pa
   await page.goto('/review')
   const l1 = page.getByRole('region', { name: 'この明細は、どの支出の分?' })
   await l1.getByRole('button', { name: 'どれでもない' }).click()
+  await page.getByRole('dialog', { name: 'どの支出とも結びませんか?' }).getByRole('button', { name: 'どれでもない' }).click()
   await expect(l1).toHaveCount(0)
   expect(sent).toEqual([{ path: '/api/review/none', body: { chargeId: 1 } }])
 })
