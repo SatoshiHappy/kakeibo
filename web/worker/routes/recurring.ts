@@ -125,10 +125,11 @@ recurring.put('/:id{[0-9]+}', async (c) => {
   try {
     res = await db
       .prepare(
-        `UPDATE recurring_expenses SET name = ?, category_id = ?, amount = ?, payment_method = ?, day_of_month = ?, next_on = ?, updated_at = ?
+        `UPDATE recurring_expenses SET name = ?, category_id = ?, amount = ?, payment_method = ?, day_of_month = ?, next_on = COALESCE(?, next_on), updated_at = ?
          WHERE id = ? AND ended_at IS NULL`,
       )
-      .bind(b.name, b.categoryId, b.amount, b.paymentMethod, b.dayOfMonth, nextOn, nowIso(), id)
+      // 日を直していなければ next_on は書かない(読んだ後に Cron が進めても古い値で戻さない)
+      .bind(b.name, b.categoryId, b.amount, b.paymentMethod, b.dayOfMonth, unchanged ? null : nextOn, nowIso(), id)
       .run()
   } catch (e) {
     if (retiredMeanwhile(e)) return c.json({ error: 'invalid_category' }, 400)
