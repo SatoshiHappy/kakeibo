@@ -69,6 +69,19 @@ function classify(err: unknown): AiErrorKind {
   return 'other'
 }
 
+/** ベンダーが返した誤り(状態コード・型・文の先頭)。画像も読んだ内容も含まない */
+function vendorError(err: unknown): string {
+  if (!APICallError.isInstance(err)) return err instanceof Error ? err.message.slice(0, 200) : ''
+  let type = ''
+  try {
+    const body = JSON.parse(err.responseBody ?? '') as { error?: { type?: string } }
+    type = body.error?.type ?? ''
+  } catch {
+    // 本文が JSON でない(途中で切れた など)ときは型を出さない
+  }
+  return `status=${err.statusCode ?? 'none'} type=${type} message=${err.message.slice(0, 200)}`
+}
+
 /**
  * 在庫の品物の当て方を口の検査にそろえる(人が確かめて保存で直す初めの値なので、合わない分は読み取り全体を失敗にせず外す):
  * 一覧に無い品物・額が正でない品目(返品・0 円)は外す。品物があって個数が 1 未満・無いなら 1
@@ -112,8 +125,8 @@ export async function readReceipt(env: AiEnv, images: Uint8Array[], categories: 
     return { ok: true, result: { ...output, items: output.items.map((i) => withStock(i, stockItems)) }, model }
   } catch (err) {
     const kind = classify(err)
-    // 中身(画像・応答)は記録しない。種類と名前だけ(基盤 §4)
-    console.error('receipt read failed', kind, err instanceof Error ? err.name : typeof err)
+    // 中身(画像・読んだ内容)は記録しない。種類と名前と、ベンダーの誤りの状態コード・型・文だけ(基盤 §4。原因を本番の記録で追えるように)
+    console.error('receipt read failed', kind, err instanceof Error ? err.name : typeof err, vendorError(err))
     return { ok: false, kind, model }
   }
 }

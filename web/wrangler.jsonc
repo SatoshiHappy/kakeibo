@@ -35,6 +35,8 @@
     // `wrangler secret put VAPID_PRIVATE_KEY`・`VAPID_SUBJECT` だけに置く(手元には無いので、手元の通知の判定は止まる)
     "VAPID_PUBLIC_KEY": "BM41Jo16eGoQd7HS6-3dmhtOAsnGKbEe32xOve1ZWg0og3MfnUjB3Q73_5sPVk1-NlVS6DwrLQ8JGd7M0CzzsGY"
   },
+  // 本番の記録(Workers Logs)。失敗の原因を後から読めるように残す(中身は記録しない = 基盤 §4)
+  "observability": { "enabled": true },
   // 在庫の通知の判定(データと照合 表 N)。毎日 9 時(日本時間)= 0 時(UTC)
   "triggers": { "crons": ["0 0 * * *"] }
 }

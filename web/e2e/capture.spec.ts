@@ -51,3 +51,28 @@ test('並べた写真は読み込み直しても残り、「前の続き」で 1
     expect((await page.request.delete(`/api/receipts/${id}`, { headers: { origin: new URL(page.url()).origin } })).status()).toBe(204)
   }
 })
+
+test('送るときに通信が 1 回失敗しても、自動で送り直して下書きになる(iOS で裏から戻した直後の失敗)', async ({ page }) => {
+  await page.goto('/capture')
+  await page.locator('input[type=file][multiple]').setInputFiles([{ name: 'a.jpg', mimeType: 'image/jpeg', buffer: await jpeg(page, '#3c3') }])
+  const tray = page.getByRole('region', { name: /送る前の写真/ })
+  await expect(tray.getByRole('heading')).toContainText('送る前の写真(1)')
+  let aborted = 0
+  await page.route('**/api/receipts', async (route) => {
+    if (route.request().method() === 'POST' && aborted === 0) {
+      aborted += 1
+      return route.abort('failed')
+    }
+    return route.fallback()
+  })
+  const posted = page.waitForResponse((r) => r.url().endsWith('/api/receipts') && r.request().method() === 'POST')
+  await tray.getByRole('button', { name: /送る/ }).click()
+  const { id } = (await (await posted).json()) as { id: number }
+  try {
+    expect(aborted).toBe(1)
+    await expect(tray).toBeHidden()
+    await expect(page.getByText('通信できませんでした')).toHaveCount(0)
+  } finally {
+    expect((await page.request.delete(`/api/receipts/${id}`, { headers: { origin: new URL(page.url()).origin } })).status()).toBe(204)
+  }
+})

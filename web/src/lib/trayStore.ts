@@ -2,6 +2,7 @@
 import { useSyncExternalStore } from 'react'
 import { get, set } from 'idb-keyval'
 import { shrinkToJpeg } from './photo'
+import { ApiError } from './api'
 import { api, refetchAfterSave } from './query'
 import { groupPhotos, MAX_PHOTOS_PER_RECEIPT, requestIdOf, type TrayPhoto } from './tray'
 
@@ -92,6 +93,21 @@ export const setContinued = (id: string, cont: boolean) => update(state.photos.m
 const refetchDrafts = () => refetchAfterSave({ predicate: (q) => q.queryKey[0] === '/api/receipts' || String(q.queryKey[0]).startsWith('/api/home') })
 
 /**
+ * レシートを送る。通信の失敗(応答の無い失敗)なら少し待って 1 回だけ送り直す: iOS のホーム画面のアプリは、裏から戻した直後の
+ * 大きな送信が 1 回目だけ通信の失敗になることがある(2026-11-17 本番。送り直すと通る)。口は clientRequestId で同じ送信を
+ * 1 件にまとめる(データと照合 §2.1)ので、1 回目が実は届いていても二重にならない
+ */
+async function postReceipt(form: FormData): Promise<{ id: number }> {
+  try {
+    return await api.request<{ id: number }>('/api/receipts', { method: 'POST', body: form })
+  } catch (e) {
+    if (!(e instanceof ApiError) || e.status !== null) throw e
+    await new Promise((r) => setTimeout(r, 800))
+    return api.request<{ id: number }>('/api/receipts', { method: 'POST', body: form })
+  }
+}
+
+/**
  * 並びの写真をレシートごとに送る。送れたレシートの写真は並びから消し、読み取りを頼む(応答は待たない)。
  * 1 枚でも送れなければそこで止めて投げる(残りは並びに残る)
  */
@@ -103,7 +119,7 @@ export async function sendTray(onProgress: (done: number, total: number) => void
     const form = new FormData()
     form.set('clientRequestId', await requestIdOf(group))
     group.forEach((p, i) => form.append('images', new File([p.blob], `${i + 1}.jpg`, { type: 'image/jpeg' })))
-    const { id } = await api.request<{ id: number }>('/api/receipts', { method: 'POST', body: form })
+    const { id } = await postReceipt(form)
     const sent = new Set(group.map((p) => p.id))
     await update(state.photos.filter((p) => !sent.has(p.id)))
     onProgress(n + 1, groups.length)
