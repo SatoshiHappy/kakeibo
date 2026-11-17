@@ -48,7 +48,7 @@ export function Stock() {
     </button>
   )
   return (
-    <Screen label="在庫" tabs top={<TopBar title="消耗品の在庫" left={{ kind: 'menu' }} right={right} />}>
+    <Screen label="在庫" tabs top={<TopBar title="消耗品の在庫" right={right} />}>
       <PushBox />
       {error && (
         <div className="errline" role="alert">
@@ -230,7 +230,7 @@ function PushBox() {
   }
   const text: Record<PushState, string> = {
     unsupported: '通知は、ホーム画面に追加したアプリで使えます。',
-    denied: '通知が止められています。iPhone の「設定」→「通知」で許可してください。',
+    denied: '通知が止められています。iPhone の設定アプリの「通知」で許可してください。',
     off: 'そろそろ買う品物を、朝 9 時にこの iPhone に知らせる。',
     on: 'そろそろ買う品物を、朝 9 時にこの iPhone に知らせます。',
   }

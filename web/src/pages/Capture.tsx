@@ -62,7 +62,7 @@ export function Capture() {
   }
 
   return (
-    <Screen label="撮る" tabs top={<TopBar title="レシートを撮る" left={{ kind: 'menu' }} />}>
+    <Screen label="撮る" tabs top={<TopBar title="レシートを撮る" />}>
       <input ref={camera} type="file" accept="image/*" capture="environment" hidden onChange={onPick} />
       <input ref={library} type="file" accept="image/*" multiple hidden onChange={onPick} />
       <button className="cta" type="button" disabled={busy !== null} onClick={() => camera.current?.click()}>

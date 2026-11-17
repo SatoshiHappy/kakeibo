@@ -18,9 +18,9 @@ export function Trend() {
   const months = periodMonths(to, n)
   const q = useApiQuery<TrendResponse>(`/api/summary/trend?from=${months[0]}&to=${to}`)
   const [picked, setPicked] = useState(to)
-  // メニューから開いたらメニューへ、ホームのグラフから開いたらホームへ戻る
+  // 設定から開いたら設定へ、ホームのグラフから開いたらホームへ戻る
   const [search] = useSearchParams()
-  const back = search.get('from') === 'menu' ? ({ kind: 'back', to: '/menu', label: 'メニューに戻る' } as const) : ({ kind: 'back', to: '/', label: 'ホームに戻る' } as const)
+  const back = search.get('from') === 'settings' ? ({ kind: 'back', to: '/settings', label: '設定に戻る' } as const) : ({ kind: 'back', to: '/', label: 'ホームに戻る' } as const)
 
   return (
     <Screen label="推移" tabs={false} top={<TopBar title="月ごとの推移" left={back} />}>

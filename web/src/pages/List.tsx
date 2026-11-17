@@ -2,7 +2,7 @@
 import { useState } from 'react'
 import { Link, useSearchParams } from 'react-router'
 import { Icon, type IconName } from '../components/Icon'
-import { MenuButton, Screen } from '../components/Shell'
+import { Screen } from '../components/Shell'
 import { byDay, dayLabel, matches, rowMark, type Filter, type ListExpense, type ListResponse } from '../lib/expenseList'
 import { currentMonth, isMonth, shiftMonth, yen } from '../lib/format'
 import { useApiQuery } from '../lib/query'
@@ -38,7 +38,6 @@ export function List() {
 
   const top = (
     <header className="bar-top">
-      <MenuButton />
       <button className="iconbtn" type="button" aria-label="前の月" onClick={() => go(shiftMonth(month, -1))}>
         <Icon name="back" />
       </button>

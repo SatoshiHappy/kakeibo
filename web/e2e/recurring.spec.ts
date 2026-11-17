@@ -3,7 +3,7 @@ import { expect, test } from '@playwright/test'
 
 test('毎月決まった支出を足して直し、止めると一覧から消える', async ({ page }, info) => {
   const name = `E2E 家賃 ${info.project.name} ${crypto.randomUUID().slice(0, 6)}`
-  await page.goto('/menu')
+  await page.goto('/settings')
   await page.getByRole('link', { name: /毎月決まった支出/ }).click()
   await expect(page.getByRole('heading', { name: '毎月決まった支出' })).toBeVisible()
 

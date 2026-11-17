@@ -87,7 +87,7 @@ export function Review() {
     </Link>
   )
   return (
-    <Screen label="確かめる" tabs={false} top={<TopBar title={q.data ? `確かめる(${cards.length})` : '確かめる'} left={{ kind: 'back', to: '/menu', label: 'メニューに戻る' }} right={right} />}>
+    <Screen label="確かめる" tabs={false} top={<TopBar title={q.data ? `確かめる(${cards.length})` : '確かめる'} left={{ kind: 'back', to: '/settings', label: '設定に戻る' }} right={right} />}>
       {error && (
         <div className="errline" role="alert">
           <span>{error}</span>

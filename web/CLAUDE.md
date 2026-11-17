@@ -37,7 +37,7 @@
 - 画面の HTML・CSS・ブラウザ側の JS を書く前に、modern-web-guidance のスキルで手引きを引く。
 - 色・字・角丸は `src/styles.css` のトークン(`--bg`・`--fg`・`--c1` など)だけを使う。色を直書きしない。トークンは `light-dark()` で明暗の両方を持つ(明暗は表 Y = `src/lib/theme.ts`。index.html の明暗の script を変えたら `public/_headers` の CSP の sha256 も変える)。
 - 入力欄の字は 16px、押す所は 44px 四方以上(`--target-size`)。アイコンだけの押す所には `aria-label`。
-- 画面は `src/components/Shell.tsx` の `Screen`・`TopBar` で組む。下のタブはホーム・撮る・一覧・在庫の 4 つ、ほかは ≡ のメニュー(基盤 §2.2)。
+- 画面は `src/components/Shell.tsx` の `Screen`・`TopBar` で組む。下のタブはホーム・撮る・一覧・在庫・設定の 5 つ、たまに使うものは設定の画面(基盤 §2.2)。
 
 ## テスト
 - 業務の規則は API 側に置き、`test/` の結合テストで守る(`@cloudflare/vitest-plugin`)。

@@ -49,7 +49,7 @@ export function RecurringPage() {
   )
   const data = q.data
   return (
-    <Screen label="毎月決まった支出" tabs={false} top={<TopBar title="毎月決まった支出" left={{ kind: 'back', to: '/menu', label: 'メニュー' }} right={right} />}>
+    <Screen label="毎月決まった支出" tabs={false} top={<TopBar title="毎月決まった支出" left={{ kind: 'back', to: '/settings', label: '設定に戻る' }} right={right} />}>
       {error && (
         <div className="errline" role="alert">
           <span>{error}</span>

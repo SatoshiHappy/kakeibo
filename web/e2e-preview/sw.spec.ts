@@ -7,14 +7,14 @@ test('K2 → K3: 401 で _login=1 を付けて Service Worker を通さず読み
   page.on('request', (r) => {
     if (r.isNavigationRequest() && r.frame() === page.mainFrame()) navigations.push(new URL(r.url()).pathname + new URL(r.url()).search)
   })
-  await page.goto('/menu')
+  await page.goto('/settings')
   // 本番のビルドの初回は Service Worker を入れながら読み直すので、帯が出るまで長めに待つ
   await expect(page.getByText('ログインを確かめられません')).toBeVisible({ timeout: 20_000 })
-  expect(navigations).toContain('/menu?_login=1')
-  await expect(page).toHaveURL(/\/menu$/) // 読み込んだ後に _login を消す
+  expect(navigations).toContain('/settings?_login=1')
+  await expect(page).toHaveURL(/\/settings$/) // 読み込んだ後に _login を消す
   // 再読み込みは 1 回だけ(続けて読み直さない)
   await page.waitForTimeout(1500)
-  expect(navigations.filter((n) => n === '/menu?_login=1').length).toBe(1)
+  expect(navigations.filter((n) => n === '/settings?_login=1').length).toBe(1)
 })
 
 test('Service Worker が画面の HTML と、それが指す /assets/* を端末に置く', async ({ page }) => {

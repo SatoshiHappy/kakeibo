@@ -2,7 +2,7 @@
 import { Pie, PieChart, Sector, type PieSectorShapeProps } from 'recharts'
 import { Link, useSearchParams } from 'react-router'
 import { Icon } from '../components/Icon'
-import { MenuButton, Screen } from '../components/Shell'
+import { Screen } from '../components/Shell'
 import { homeRows, pieSlices, type HomeRows, type Slice } from '../lib/categories'
 import { currentMonth, isMonth, jstToday, monthLabel, shiftMonth, shortDate, yen } from '../lib/format'
 import { homePath, type HomeResponse } from '../lib/home'
@@ -18,7 +18,6 @@ export function Home() {
 
   const top = (
     <header className="bar-top">
-      <MenuButton />
       <button className="iconbtn" type="button" aria-label="前の月" onClick={() => go(shiftMonth(month, -1))}>
         <Icon name="back" />
       </button>
@@ -26,7 +25,6 @@ export function Home() {
       <button className="iconbtn" type="button" aria-label="次の月" disabled={month >= thisMonth} onClick={() => go(shiftMonth(month, 1))}>
         <Icon name="next" />
       </button>
-      <span className="iconbtn" aria-hidden="true" />
     </header>
   )
 
@@ -71,7 +69,7 @@ function HomeBody({ data, month, isCurrent }: { data: HomeResponse; month: strin
         <Link className="lrow" to="/stock">
           <span>そろそろ買う</span>
           <span>
-            <b className="cnt num">{data.stockSoon.length}</b> <span className="faint">›</span>
+            <b className="cnt num">{data.stockSoon.length}<span className="visually-hidden"> 件</span></b> <span className="faint">›</span>
           </span>
         </Link>
         {data.stockSoon.slice(0, 5).map((s) => (
@@ -88,7 +86,7 @@ function HomeBody({ data, month, isCurrent }: { data: HomeResponse; month: strin
         <Link className="lrow" to="/review">
           <span>確かめること</span>
           <span>
-            <b className="cnt num">{data.reviewCount}</b> <span className="faint">›</span>
+            <b className="cnt num">{data.reviewCount}<span className="visually-hidden"> 件</span></b> <span className="faint">›</span>
           </span>
         </Link>
       </nav>

@@ -51,7 +51,7 @@ export function useApiQuery<T>(path: string, options: Omit<UseQueryOptions<T>, '
 export async function refetchAfterSave(filters: QueryFilters) {
   await queryClient.cancelQueries(filters)
   await queryClient.invalidateQueries(filters)
-  // 印(撮る・在庫・≡)は今月のホームの応答を読むだけ(開いた画面では取りに行かない = 1 画面 1 回)。
+  // 印(撮る・在庫・設定)は今月のホームの応答を読むだけ(開いた画面では取りに行かない = 1 画面 1 回)。
   // ホームを開いていない画面で保存したときも印が新しくなるよう、読み直す対象に入っていれば保存の後に 1 回だけ取る
   const badge = [`/api/home?month=${currentMonth()}`]
   const hit = queryClient.getQueryCache().findAll(filters).some((q) => q.queryKey[0] === badge[0])

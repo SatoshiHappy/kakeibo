@@ -1,4 +1,4 @@
-// 画面の明暗(基盤 §2.2 の表 Y)。≡ のメニューで選ぶと端末の明暗より優先し、開き直しても残る
+// 画面の明暗(基盤 §2.2 の表 Y)。設定の画面で選ぶと端末の明暗より優先し、開き直しても残る
 import { expect, test, type Page } from '@playwright/test'
 
 const ground = (page: Page) => page.evaluate(() => getComputedStyle(document.body).backgroundColor)
@@ -7,8 +7,8 @@ const DARK = 'rgb(18, 21, 19)'
 
 test('ダークを選ぶと端末がライトでもダークになり、開き直しても残る。自動に戻すと端末に従う', async ({ page }) => {
   await page.emulateMedia({ colorScheme: 'light' })
-  await page.goto('/menu')
-  const group = page.getByRole('group', { name: '画面の明るさ(この端末)' })
+  await page.goto('/settings')
+  const group = page.getByRole('group', { name: '画面の明るさ' })
   await expect(group.getByRole('button', { name: /^自動/ })).toHaveAccessibleName(/今はライト/)
   await expect(group.getByRole('button', { name: /^自動/ })).toHaveAttribute('aria-pressed', 'true')
   expect(await ground(page)).toBe(LIGHT)
@@ -29,11 +29,11 @@ test('ダークを選ぶと端末がライトでもダークになり、開き�
   await expect.poll(() => ground(page)).toBe(DARK)
 })
 
-test('ほかのタブで選んだ明暗が、メニュー以外の画面を開いているタブにも当たる', async ({ page, context }) => {
+test('ほかのタブで選んだ明暗が、設定以外の画面を開いているタブにも当たる', async ({ page, context }) => {
   await page.emulateMedia({ colorScheme: 'light' })
   await page.goto('/')
   const other = await context.newPage()
-  await other.goto('/menu')
+  await other.goto('/settings')
   await other.getByRole('button', { name: 'ダーク' }).click()
   await expect.poll(() => ground(page)).toBe(DARK)
   await other.getByRole('button', { name: /^自動/ }).click()
@@ -41,9 +41,9 @@ test('ほかのタブで選んだ明暗が、メニュー以外の画面を開�
 })
 
 test('明暗の選びの見た目が、推移の期間の切り替え(同じ .seg)を崩さない: 3 つが横いっぱいに等分に並ぶ', async ({ page }) => {
-  for (const path of ['/menu', '/trend']) {
+  for (const path of ['/settings', '/trend']) {
     await page.goto(path)
-    const group = page.getByRole('group', { name: path === '/menu' ? '画面の明るさ(この端末)' : '期間' })
+    const group = page.getByRole('group', { name: path === '/settings' ? '画面の明るさ' : '期間' })
     const boxes = await group.getByRole('button').evaluateAll((els) => els.map((e) => e.getBoundingClientRect().width))
     const outer = (await group.boundingBox())!.width
     expect(boxes).toHaveLength(3)

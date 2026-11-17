@@ -5,19 +5,17 @@ import { EditExpenseForm, NewExpenseForm, ReceiptForm } from './pages/ExpenseFor
 import { Home } from './pages/Home'
 import { Import } from './pages/Import'
 import { List } from './pages/List'
-import { Menu } from './pages/Menu'
 import { RecurringPage } from './pages/Recurring'
 import { Placeholder } from './pages/Placeholder'
 import { Prefs } from './pages/Prefs'
 import { Review } from './pages/Review'
+import { Settings } from './pages/Settings'
 import { Stock } from './pages/Stock'
 import { Totals } from './pages/Totals'
 import { Trend } from './pages/Trend'
 
-const menu = { kind: 'menu' } as const
-
 export const router = createBrowserRouter([
-  // 下のタブ(ホーム・撮る・一覧・在庫)
+  // 下のタブ(ホーム・撮る・一覧・在庫・設定)
   { path: '/', element: <Home /> },
   { path: '/capture', element: <Capture /> },
   { path: '/list', element: <List /> },
@@ -27,13 +25,13 @@ export const router = createBrowserRouter([
   { path: '/expenses/new', element: <NewExpenseForm /> },
   // 一覧から
   { path: '/expenses/:id', element: <EditExpenseForm /> },
-  // ≡ のメニューから
-  { path: '/menu', element: <Menu /> },
+  { path: '/settings', element: <Settings /> },
+  // 設定から
   { path: '/recurring', element: <RecurringPage /> },
   { path: '/review', element: <Review /> },
   { path: '/trend', element: <Trend /> },
   { path: '/totals', element: <Totals /> },
   { path: '/import', element: <Import /> },
   { path: '/prefs', element: <Prefs /> },
-  { path: '*', element: <Placeholder title="見つかりません" left={menu} tabs /> },
+  { path: '*', element: <Placeholder title="見つかりません" tabs /> },
 ])

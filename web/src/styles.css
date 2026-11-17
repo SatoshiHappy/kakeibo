@@ -1,5 +1,5 @@
 /* 色・字・角丸はモック 14 版(docs/work/2026111501_方針検討/outputs/モック_スマホ版_生成.py)と基盤 §2.2 の値。
-   明暗は light-dark() で、既定は端末の設定に従い、≡ のメニューで端末ごとに固定できる(基盤 §2.2 の表 Y)。費目の色 --c1〜--c9 は dataviz の検査に通した配色 */
+   明暗は light-dark() で、既定は端末の設定に従い、設定の画面で端末ごとに固定できる(基盤 §2.2 の表 Y)。費目の色 --c1〜--c9 は dataviz の検査に通した配色 */
 :root {
   color-scheme: light dark;
   --bg: light-dark(#FFFFFF, #1C221E); --ground: light-dark(#F3F4F2, #121513); --fg: light-dark(#202522, #E8ECE9); --muted: light-dark(#5C665F, #AEB8B1); --faint: light-dark(#6E7972, #8F9A93); --border: light-dark(#EDEFEC, #2A332D); --input: light-dark(#8A958E, #7A857E);
@@ -19,7 +19,7 @@
 html, body, #root { height: 100%; margin: 0; }
 body { background: var(--ground); color: var(--fg); font-family: var(--font); font-size: 14px; line-height: 1.45; -webkit-text-size-adjust: 100%; overflow-wrap: anywhere; }
 /* Dynamic Island の下に地の色を敷く(viewport-fit=cover。基盤 §2.1) */
-body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--ground); }
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--bg); }
 a { color: var(--primary); text-decoration: none; }
 button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; text-align: inherit; }
 /* 入力欄の字は 16px(Safari が入力のときに画面を拡大しないように。基盤 §2.2) */
@@ -36,25 +36,27 @@ b { font-weight: 700; }
 /* 上は Dynamic Island と時刻の帯の下から始める(viewport-fit=cover なので、ホーム画面のアプリでは画面が帯の下まで広がる)。
    これが無いと、上の帯(.bar-top)が開いた直後は時刻の帯の裏に隠れ、スクロールした後だけ出る */
 .screen { max-width: 440px; margin: 0 auto; min-height: 100%; box-sizing: border-box; padding-top: env(safe-area-inset-top, 0px); display: flex; flex-direction: column; }
-.screen > main { flex: 1; display: flex; flex-direction: column; gap: 10px; padding-block: 0 12px; padding-left: max(12px, env(safe-area-inset-left, 0px)); padding-right: max(12px, env(safe-area-inset-right, 0px)); }
+.screen > main { flex: 1; display: flex; flex-direction: column; gap: 10px; padding-block: 10px 12px; padding-left: max(12px, env(safe-area-inset-left, 0px)); padding-right: max(12px, env(safe-area-inset-right, 0px)); }
 /* 下のタブが無い画面(main が最後)は、いちばん下の行がホームバーに重ならないよう下の safe-area も空ける。保存の帯は自分で空けるので、その画面は下を空けない */
 .screen > main:last-child { padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px)); }
 .screen > main:has(> .savebar) { padding-bottom: 0; }
-.apphead { margin: 0; padding: 6px max(16px, env(safe-area-inset-left, 0px)) 0; font-size: 20px; font-weight: 700; letter-spacing: 0.04em; color: var(--primary); line-height: 1.3; }
-.bar-top { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: var(--ground); min-height: 44px; display: flex; align-items: center; gap: 4px; padding-left: max(4px, env(safe-area-inset-left, 0px)); padding-right: max(8px, env(safe-area-inset-right, 0px)); }
+.setlist { display: flex; flex-direction: column; gap: 10px; }
+/* 上の帯は白(下のタブと同じ面)で、中身との境に線を引く(2026-11-17 ユーザーが上の帯の案 10 を採用) */
+.bar-top { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: var(--bg); border-bottom: 1px solid var(--border); min-height: 44px; display: flex; align-items: center; gap: 4px; padding-left: max(4px, env(safe-area-inset-left, 0px)); padding-right: max(8px, env(safe-area-inset-right, 0px)); }
 .bar-top h1 { font-size: 17px; font-weight: 700; margin: 0; flex: 1; }
+.bar-top > h1:first-child { padding-left: 12px; }
 .iconbtn { position: relative; inline-size: var(--target-size); block-size: var(--target-size); display: grid; place-items: center; border-radius: var(--r-pill); color: var(--fg); flex: none; }
 .textbtn { min-height: var(--target-size); display: flex; align-items: center; padding: 0 8px; font-size: 14px; font-weight: 500; color: var(--primary); }
 .panel { background: var(--bg); border-radius: var(--r-card); }
 .lrow { display: flex; justify-content: space-between; align-items: center; gap: 8px; min-height: var(--target-size); padding: 0 12px; border-top: 1px solid var(--border); color: var(--fg); }
-.panel > .lrow:first-child { border-top: 0; }
+.panel > .lrow:first-child, .panel > h2 + .lrow { border-top: 0; }
 .lrow.linked { flex-wrap: wrap; padding-block: 6px; }
 .lrow.linked .textbtn { margin-left: auto; }
 .lrow .mi { display: flex; align-items: center; gap: 10px; }
 .note { color: var(--muted); font-size: 12px; margin: 0; }
 
-/* 下のタブ(基盤 §2.2: ホーム・撮る・一覧・在庫) */
-.tabbar { position: sticky; bottom: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); background: var(--bg); border-top: 1px solid var(--border); padding-bottom: env(safe-area-inset-bottom, 0px); padding-left: env(safe-area-inset-left, 0px); padding-right: env(safe-area-inset-right, 0px); }
+/* 下のタブ(基盤 §2.2: ホーム・撮る・一覧・在庫・設定) */
+.tabbar { position: sticky; bottom: 0; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); background: var(--bg); border-top: 1px solid var(--border); padding-bottom: env(safe-area-inset-bottom, 0px); padding-left: env(safe-area-inset-left, 0px); padding-right: env(safe-area-inset-right, 0px); }
 .tabbar a { position: relative; min-height: 50px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; color: var(--muted); font-size: 10px; }
 .tabbar a[aria-current="page"] { color: var(--primary); font-weight: 700; }
 .badge { position: absolute; top: 3px; left: calc(50% + 6px); min-width: 16px; height: 16px; padding: 0 4px; box-sizing: border-box; border-radius: var(--r-pill); background: var(--danger); color: var(--bg); font-size: 10px; font-weight: 700; display: grid; place-items: center; }
@@ -323,6 +325,6 @@ details.retired > summary { min-height: var(--target-size); display: flex; align
 .pickline .pickrow { border-top: 0; }
 .pickline .iconbtn:disabled { opacity: 0.3; }
 
-/* 画面の明るさの選び(≡ のメニュー。表 Y)。選びは上の .seg を使う */
+/* 画面の明るさの選び(設定の画面。表 Y)。選びは上の .seg を使う */
 .scheme { flex-direction: column; align-items: stretch; gap: 6px; padding-block: 10px; }
 .recur { width: 100%; text-align: left; }

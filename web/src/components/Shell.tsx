@@ -5,11 +5,13 @@ import { useBadgeCounts } from '../lib/home'
 import { api } from '../lib/query'
 import { Icon, type IconName } from './Icon'
 
+// 5 つ目の「設定」に、たまに使う機能と設定をしまう(基盤 §2.2。2026-11-17 ユーザーがモックの案 10 を採用)
 const TABS: { to: string; icon: IconName; label: string }[] = [
   { to: '/', icon: 'home', label: 'ホーム' },
   { to: '/capture', icon: 'camera', label: '撮る' },
   { to: '/list', icon: 'list', label: '一覧' },
   { to: '/stock', icon: 'box', label: '在庫' },
+  { to: '/settings', icon: 'gear', label: '設定' },
 ]
 
 /** 数の印。0 なら出さない。読み上げは label で数を言う */
@@ -27,6 +29,7 @@ export function TabBar() {
   const badge: Record<string, { n: number; label: string }> = {
     '/capture': { n: counts.draft, label: '下書き' },
     '/stock': { n: counts.stock, label: 'そろそろ買う' },
+    '/settings': { n: counts.review, label: '確かめること' },
   }
   return (
     <nav className="tabbar" aria-label="画面の切り替え">
@@ -42,26 +45,13 @@ export function TabBar() {
   )
 }
 
-/** ≡ のメニュー(確かめる件数の印つき。基盤 §2.2) */
-export function MenuButton() {
-  const { review } = useBadgeCounts()
-  return (
-    <Link className="iconbtn" to="/menu" aria-label="メニュー">
-      <Icon name="menu" />
-      <Badge n={review} label="確かめること" />
-    </Link>
-  )
-}
+/** 左上の戻る。下のタブの画面には置かない(タブで行き来する) */
+export type TopBarLeft = { kind: 'back'; to: string; label: string }
 
-/** 左上: タブの画面は ≡ のメニュー、ほかは戻る */
-export type TopBarLeft = { kind: 'menu' } | { kind: 'back'; to: string; label: string }
-
-export function TopBar({ title, left, right }: { title: ReactNode; left: TopBarLeft; right?: ReactNode }) {
+export function TopBar({ title, left, right }: { title: ReactNode; left?: TopBarLeft; right?: ReactNode }) {
   return (
     <header className="bar-top">
-      {left.kind === 'menu' ? (
-        <MenuButton />
-      ) : (
+      {left && (
         <Link className="iconbtn" to={left.to} aria-label={left.label}>
           <Icon name="back" />
         </Link>
@@ -101,12 +91,6 @@ function AuthBar() {
 export function Screen({ label, top, tabs, children }: { label: string; top: ReactNode; tabs: boolean; children: ReactNode }) {
   return (
     <section className="screen" aria-label={label}>
-      {/* アプリの題(下のタブの画面だけ。固定の帯を重ねないよう、上の帯と違ってスクロールで流れる) */}
-      {tabs && (
-        <p className="apphead" aria-hidden="true">
-          家計簿
-        </p>
-      )}
       {top}
       <AuthBar />
       <main>{children}</main>

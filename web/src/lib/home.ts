@@ -1,4 +1,4 @@
-// ホームの応答(設計 §4.5)。印(撮る・在庫・≡)はどの画面でも、端末に残したホームの応答から読む
+// ホームの応答(設計 §4.5)。印(撮る・在庫・設定)はどの画面でも、端末に残したホームの応答から読む
 import { useQuery } from '@tanstack/react-query'
 import type { CategoryAmount } from './categories'
 import { currentMonth } from './format'
