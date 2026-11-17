@@ -25,7 +25,7 @@ test('設定のタブを開くと、ログイン中の利用者が出る(開発�
   await expect(page).toHaveURL(/\/settings$/)
 })
 
-test('要確認の件数の印は設定のタブに付く', async ({ page }) => {
+test('要確認レシートの件数の印は設定のタブに付く', async ({ page }) => {
   await page.route('**/api/home**', async (route) => {
     const res = await route.fetch()
     const body = await res.json()
@@ -33,7 +33,7 @@ test('要確認の件数の印は設定のタブに付く', async ({ page }) => 
   })
   await page.goto('/')
   await expect(page.getByRole('navigation', { name: '画面の切り替え' }).getByRole('link', { name: /設定/ })).toContainText('3')
-  await expect(page.getByLabel('要確認 3 件')).toBeVisible()
+  await expect(page.getByLabel('要確認レシート 3 件')).toBeVisible()
 })
 
 test('横にスクロールしない・押す所は 44px 以上', async ({ page }) => {
@@ -89,7 +89,7 @@ test('アプリの題の行は出さず、上の帯がいちばん上に来る(2
 test('設定の画面は機能の種類の見出しで分かれ、よく使う順に並ぶ', async ({ page }) => {
   await page.goto('/settings')
   await expect(page.locator('.panel > h2')).toHaveText(['毎月', '振り返り', '家族で共通', 'この iPhone'])
-  await expect(page.getByRole('region', { name: '毎月' }).getByRole('link')).toHaveText([/要確認/, /明細の取り込み/])
+  await expect(page.getByRole('region', { name: '毎月' }).getByRole('link')).toHaveText([/要確認レシート/, /明細の取り込み/])
   await expect(page.getByRole('region', { name: 'この iPhone' }).getByRole('group', { name: '画面の明るさ' })).toBeVisible()
 })
 

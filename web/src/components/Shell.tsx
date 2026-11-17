@@ -29,8 +29,8 @@ export function TabBar() {
   const counts = useBadgeCounts()
   const badge: Record<string, { n: number; label: string }> = {
     '/capture': { n: counts.draft, label: '下書き' },
-    '/stock': { n: counts.stock, label: '買い足し' },
-    '/settings': { n: counts.review, label: '要確認' },
+    '/stock': { n: counts.stock, label: '在庫アラート' },
+    '/settings': { n: counts.review, label: '要確認レシート' },
   }
   return (
     <nav className="tabbar" aria-label="画面の切り替え">

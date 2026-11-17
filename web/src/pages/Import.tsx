@@ -116,7 +116,7 @@ function Result({ r }: { r: ImportResult }) {
       {r.reviewCount > 0 && (
         <div className="pad">
           <Link className="softbtn wide" to="/review">
-            要確認({r.reviewCount})へ
+            要確認レシート({r.reviewCount})へ
           </Link>
         </div>
       )}

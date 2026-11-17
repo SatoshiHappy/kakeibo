@@ -19,7 +19,7 @@ export function Settings() {
         <section className="panel" aria-labelledby="set-month">
           <h2 id="set-month">毎月</h2>
           <Link className="lrow" to="/review">
-            <span className="mi"><Icon name="check" />要確認</span>
+            <span className="mi"><Icon name="check" />要確認レシート</span>
             {/* 設定のタブの印と同じ数(どの行の印かが分かるように) */}
             <span className="sub">{review > 0 && <b className="cnt num">{review}<span className="visually-hidden"> 件</span> </b>}›</span>
           </Link>

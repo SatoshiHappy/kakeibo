@@ -87,7 +87,7 @@ export function Review() {
     </Link>
   )
   return (
-    <Screen label="要確認" tabs={false} top={<TopBar title={q.data ? `要確認(${cards.length})` : '要確認'} left={{ to: '/settings', label: '設定に戻る' }} right={right} />}>
+    <Screen label="要確認レシート" tabs={false} top={<TopBar title={q.data ? `要確認レシート(${cards.length})` : '要確認レシート'} left={{ to: '/settings', label: '設定に戻る' }} right={right} />}>
       {error && (
         <div className="errline" role="alert">
           <span>{error}</span>
@@ -98,7 +98,7 @@ export function Review() {
       )}
       {q.data ? (
         cards.length === 0 ? (
-          <p className="note">要確認の項目はありません。</p>
+          <p className="note">要確認レシートはありません。</p>
         ) : (
           <>
             <p className="note">カード明細とレシートが自動で結べなかったもの。色の所が違い・見るところです。</p>

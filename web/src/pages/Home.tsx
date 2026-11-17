@@ -54,9 +54,9 @@ function HomeBody({ data, month, isCurrent }: { data: HomeResponse; month: strin
         </div>
         <CategoryRows rows={rows} month={month} />
       </section>
-      <nav className="panel" aria-label="買い足し・要確認">
+      <nav className="panel" aria-label="在庫アラート・要確認レシート">
         <Link className="lrow" to="/stock">
-          <span>買い足し</span>
+          <span>在庫アラート</span>
           <span>
             <b className="cnt num">{data.stockSoon.length}<span className="visually-hidden"> 件</span></b> <span className="faint">›</span>
           </span>
@@ -73,7 +73,7 @@ function HomeBody({ data, month, isCurrent }: { data: HomeResponse; month: strin
           </Link>
         )}
         <Link className="lrow" to="/review">
-          <span>要確認</span>
+          <span>要確認レシート</span>
           <span>
             <b className="cnt num">{data.reviewCount}<span className="visually-hidden"> 件</span></b> <span className="faint">›</span>
           </span>

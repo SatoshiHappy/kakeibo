@@ -55,7 +55,7 @@ const storeKey = (m: Mode) => `kakeibo-form:${m.kind === 'receipt' ? `receipt-${
 const backOf = (m: Mode, from: string | null) =>
   m.kind === 'expense'
     ? from === 'review'
-      ? ({ to: '/review', label: '要確認に戻る' } as const)
+      ? ({ to: '/review', label: '要確認レシートに戻る' } as const)
       : ({ to: '/list', label: '一覧に戻る' } as const)
     : ({ to: '/capture', label: '撮るに戻る' } as const)
 

@@ -44,7 +44,7 @@ export async function runStockAlerts(env: Bindings, now: Date): Promise<AlertRun
   run.alerted = toSend.map((i) => i.id)
   if (toSend.length === 0) return run
 
-  const data = { title: '買い足し', body: toSend.map(alertLine).join('・'), url: '/stock' }
+  const data = { title: '在庫アラート', body: toSend.map(alertLine).join('・'), url: '/stock' }
   const { results: subs } = await db
     .prepare('SELECT id, endpoint, p256dh, auth FROM push_subscriptions ORDER BY id')
     .all<{ id: number; endpoint: string; p256dh: string; auth: string }>()

@@ -16,7 +16,7 @@ test('合計・予算の行・ほか・固定費・そろそろ買うが、API �
     await expect(summary.locator('.big')).toHaveText(yen(rows.variableTotal), quick)
     await expect(summary.locator('.ccard .name')).toHaveText([...rows.budgetRows.map((r) => r.name), ...(rows.other ? ['ほか'] : [])], quick)
     if (rows.fixed) await expect(summary.locator('.fixedline')).toContainText(yen(rows.fixed.amount), quick)
-    const soon = page.getByRole('navigation', { name: '買い足し・要確認' })
+    const soon = page.getByRole('navigation', { name: '在庫アラート・要確認レシート' })
     await expect(soon.locator('.lsub .lname')).toHaveText(data.stockSoon.slice(0, 5).map((s) => s.name), quick)
   }).toPass({ timeout: 60_000 })
 })
