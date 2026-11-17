@@ -61,7 +61,7 @@ test('L3 のカード: 探す小窓で明細の行が並び、「確認済み」
     // 直す画面へ行っても、戻ると確かめるに帰る(一覧へ行かない)
     await card.getByRole('button', { name: '支払い方法を直す' }).click()
     await expect(page.getByRole('heading', { name: '支出を直す' })).toBeVisible()
-    await page.getByRole('link', { name: '確かめるに戻る' }).click()
+    await page.getByRole('link', { name: '要確認に戻る' }).click()
     await expect(page).toHaveURL(/\/review$/)
     await expect(card).toBeVisible()
 

@@ -43,7 +43,7 @@ test('品物を足す → 1つ使った → 取り消す → 数を直す → �
   await expect(edit).toBeHidden()
   await expect(c.getByRole('button', { name: '買い置きなし' })).toBeDisabled()
   await expect(c.locator('.kpred')).toHaveText('買い置きがありません')
-  await expect(page.getByRole('region', { name: /そろそろ買う/ }).getByText(name)).toBeVisible()
+  await expect(page.getByRole('region', { name: /買い足し/ }).getByText(name)).toBeVisible()
 
   await page.getByRole('button', { name: '+ 品物' }).click()
   await dialog.getByLabel('名前').fill(name)

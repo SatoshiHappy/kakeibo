@@ -83,11 +83,11 @@ export function Review() {
   const cards = q.data ? q.data.items.map((i) => cardOf(i, q.data.paymentMethods)) : []
   const right = (
     <Link className="pillbtn" to="/import">
-      明細を取り込む
+      明細の取り込み
     </Link>
   )
   return (
-    <Screen label="確かめる" tabs={false} top={<TopBar title={q.data ? `確かめる(${cards.length})` : '確かめる'} left={{ kind: 'back', to: '/settings', label: '設定に戻る' }} right={right} />}>
+    <Screen label="要確認" tabs={false} top={<TopBar title={q.data ? `要確認(${cards.length})` : '要確認'} left={{ to: '/settings', label: '設定に戻る' }} right={right} />}>
       {error && (
         <div className="errline" role="alert">
           <span>{error}</span>
@@ -98,7 +98,7 @@ export function Review() {
       )}
       {q.data ? (
         cards.length === 0 ? (
-          <p className="note">確かめることはありません。</p>
+          <p className="note">要確認の項目はありません。</p>
         ) : (
           <>
             <p className="note">カード明細とレシートが自動で結べなかったもの。色の所が違い・見るところです。</p>

@@ -1,6 +1,6 @@
 // Service Worker。正本: docs/設計/基盤.md §2.3 の 1(画面のファイルを端末に置く)・§7(在庫の通知を受け取る)
 // 本番のビルドだけで登録する(src/main.tsx)。版を変えたら CACHE の名前を上げる(古い置き場は activate で消す)
-const CACHE = 'kakeibo-shell-v2'
+const CACHE = 'kakeibo-shell-v3'
 const SHELL = '/' // 画面(SPA の HTML)は 1 つなので、この鍵に置く
 
 // 入れた時点で画面を 1 回取りに行って置く(初めて開いた直後から、網が無くても開けるように)。
@@ -104,7 +104,10 @@ self.addEventListener('push', (event) => {
 
 self.addEventListener('notificationclick', (event) => {
   event.notification.close()
-  const target = new URL(event.notification.data?.url ?? '/', self.location.origin).href
+  // 通知から開いた印(基盤 表 O の O2。最初の読み込みでもホームへ戻さない)
+  const url = new URL(event.notification.data?.url ?? '/', self.location.origin)
+  url.searchParams.set('launch', 'notify')
+  const target = url.href
   event.waitUntil(
     self.clients.matchAll({ type: 'window' }).then((clientList) => {
       // 開いているアプリがあれば前に出して移る(移れなければ新しく開く)。無ければ開く(MDN の notificationclick の形)

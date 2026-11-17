@@ -4,11 +4,11 @@ import { expect, test } from '@playwright/test'
 test('毎月決まった支出を足して直し、止めると一覧から消える', async ({ page }, info) => {
   const name = `E2E 家賃 ${info.project.name} ${crypto.randomUUID().slice(0, 6)}`
   await page.goto('/settings')
-  await page.getByRole('link', { name: /毎月決まった支出/ }).click()
-  await expect(page.getByRole('heading', { name: '毎月決まった支出' })).toBeVisible()
+  await page.getByRole('link', { name: /定期の支出/ }).click()
+  await expect(page.getByRole('heading', { name: '定期の支出' })).toBeVisible()
 
   await page.getByRole('button', { name: '+ 足す' }).click()
-  const dialog = page.getByRole('dialog', { name: '毎月決まった支出を足す' })
+  const dialog = page.getByRole('dialog', { name: '定期の支出を足す' })
   await dialog.getByLabel('名前(一覧の店の欄)').fill(name)
   await dialog.getByLabel('額(円)').fill('101500')
   await dialog.getByLabel('費目').selectOption({ label: '家賃' })
@@ -22,14 +22,14 @@ test('毎月決まった支出を足して直し、止めると一覧から消�
   await expect(row).toContainText('毎月 27 日')
 
   await row.click()
-  const edit = page.getByRole('dialog', { name: '毎月決まった支出を直す' })
+  const edit = page.getByRole('dialog', { name: '定期の支出を直す' })
   await edit.getByLabel('額(円)').fill('99000')
   await edit.getByRole('button', { name: '保存' }).click()
   await expect(edit).toBeHidden({ timeout: 15_000 })
   await expect(row).toContainText('¥99,000', { timeout: 15_000 })
 
   await row.click()
-  await page.getByRole('dialog', { name: '毎月決まった支出を直す' }).getByRole('button', { name: /止める/ }).click()
-  await page.getByRole('dialog', { name: 'この毎月決まった支出を止めますか?' }).getByRole('button', { name: '止める', exact: true }).click()
+  await page.getByRole('dialog', { name: '定期の支出を直す' }).getByRole('button', { name: /止める/ }).click()
+  await page.getByRole('dialog', { name: 'この定期の支出を止めますか?' }).getByRole('button', { name: '止める', exact: true }).click()
   await expect(row).toHaveCount(0, { timeout: 15_000 })
 })

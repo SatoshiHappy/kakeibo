@@ -1,6 +1,7 @@
 // 画面の外枠: 上の帯・中身・下のタブ(基盤 §2.1・§2.2)
 import { useSyncExternalStore, type ReactNode } from 'react'
-import { Link, NavLink } from 'react-router'
+import { Link, NavLink, useSearchParams } from 'react-router'
+import { currentMonth, isMonth, shiftMonth } from '../lib/format'
 import { useBadgeCounts } from '../lib/home'
 import { api } from '../lib/query'
 import { Icon, type IconName } from './Icon'
@@ -28,8 +29,8 @@ export function TabBar() {
   const counts = useBadgeCounts()
   const badge: Record<string, { n: number; label: string }> = {
     '/capture': { n: counts.draft, label: '下書き' },
-    '/stock': { n: counts.stock, label: 'そろそろ買う' },
-    '/settings': { n: counts.review, label: '確かめること' },
+    '/stock': { n: counts.stock, label: '買い足し' },
+    '/settings': { n: counts.review, label: '要確認' },
   }
   return (
     <nav className="tabbar" aria-label="画面の切り替え">
@@ -46,7 +47,7 @@ export function TabBar() {
 }
 
 /** 左上の戻る。下のタブの画面には置かない(タブで行き来する) */
-export type TopBarLeft = { kind: 'back'; to: string; label: string }
+export type TopBarLeft = { to: string; label: string }
 
 export function TopBar({ title, left, right }: { title: ReactNode; left?: TopBarLeft; right?: ReactNode }) {
   return (
@@ -58,6 +59,42 @@ export function TopBar({ title, left, right }: { title: ReactNode; left?: TopBar
       )}
       <h1>{title}</h1>
       {right}
+    </header>
+  )
+}
+
+export type MonthNav = { month: string; thisMonth: string; go: (m: string) => void; params: URLSearchParams }
+
+/** URL の ?month の月。無い・形が違う・今月より先なら今月。月を移すときは ?month だけを書き換え(今月なら消す)、ほかの値(一覧の ?filter など)は残す */
+export function useMonthParam(): MonthNav {
+  const [params, setParams] = useSearchParams()
+  const thisMonth = currentMonth()
+  const raw = params.get('month')
+  const month = isMonth(raw) && raw <= thisMonth ? raw : thisMonth
+  const go = (m: string) =>
+    setParams((p) => {
+      const next = new URLSearchParams(p)
+      if (m === thisMonth) next.delete('month')
+      else next.set('month', m)
+      return next
+    })
+  return { month, thisMonth, go, params }
+}
+
+/** 月を 1 か月ずつ送る上の帯。‹ と › は両端で、› は今月で止まる。題と aside は ‹ と › の間に並ぶ(aside は › の手前)。
+ *  layout = 題の形(center = 1 行で真ん中・twoLine = 左に寄せた 2 段) */
+export function MonthBar({ nav, title, layout, aside }: { nav: MonthNav; title: ReactNode; layout: 'center' | 'twoLine'; aside?: ReactNode }) {
+  const { month, thisMonth, go } = nav
+  return (
+    <header className="bar-top">
+      <button className="iconbtn" type="button" aria-label="前の月" onClick={() => go(shiftMonth(month, -1))}>
+        <Icon name="back" />
+      </button>
+      <h1 className={layout === 'center' ? 'center' : 'mhead'}>{title}</h1>
+      {aside}
+      <button className="iconbtn" type="button" aria-label="次の月" disabled={month >= thisMonth} onClick={() => go(shiftMonth(month, 1))}>
+        <Icon name="next" />
+      </button>
     </header>
   )
 }

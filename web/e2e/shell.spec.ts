@@ -20,12 +20,12 @@ test('設定のタブを開くと、ログイン中の利用者が出る(開発�
   await expect(page.getByRole('heading', { level: 1 })).toHaveText('設定')
   await expect(tabs.getByRole('link', { name: /設定/ })).toHaveAttribute('aria-current', 'page')
   await expect(page.getByText('開発', { exact: true })).toBeVisible()
-  await page.getByRole('link', { name: /費目と月の予算/ }).click()
+  await page.getByRole('link', { name: /予算/ }).click()
   await page.getByRole('link', { name: '設定に戻る' }).click()
   await expect(page).toHaveURL(/\/settings$/)
 })
 
-test('確かめることの件数の印は設定のタブに付く', async ({ page }) => {
+test('要確認の件数の印は設定のタブに付く', async ({ page }) => {
   await page.route('**/api/home**', async (route) => {
     const res = await route.fetch()
     const body = await res.json()
@@ -33,7 +33,7 @@ test('確かめることの件数の印は設定のタブに付く', async ({ pa
   })
   await page.goto('/')
   await expect(page.getByRole('navigation', { name: '画面の切り替え' }).getByRole('link', { name: /設定/ })).toContainText('3')
-  await expect(page.getByLabel('確かめること 3 件')).toBeVisible()
+  await expect(page.getByLabel('要確認 3 件')).toBeVisible()
 })
 
 test('横にスクロールしない・押す所は 44px 以上', async ({ page }) => {
@@ -88,8 +88,30 @@ test('アプリの題の行は出さず、上の帯がいちばん上に来る(2
 
 test('設定の画面は機能の種類の見出しで分かれ、よく使う順に並ぶ', async ({ page }) => {
   await page.goto('/settings')
-  await expect(page.locator('.panel > h2')).toHaveText(['月ごとの作業', '振り返る', '家計簿の設定(家族で共通)', 'この iPhone'])
-  await expect(page.getByRole('region', { name: '月ごとの作業' }).getByRole('link')).toHaveText([/確かめる/, /明細を取り込む/])
+  await expect(page.locator('.panel > h2')).toHaveText(['毎月', '振り返り', '家族で共通', 'この iPhone'])
+  await expect(page.getByRole('region', { name: '毎月' }).getByRole('link')).toHaveText([/要確認/, /明細の取り込み/])
   await expect(page.getByRole('region', { name: 'この iPhone' }).getByRole('group', { name: '画面の明るさ' })).toBeVisible()
 })
 
+
+// 基盤 表 O: ホーム画面のアプリを真似る(WebKit の試験は display-mode を変えられないので、iOS の navigator.standalone を立てる)
+const asHomeScreenApp = (page: import('@playwright/test').Page) =>
+  page.addInitScript(() => Object.defineProperty(navigator, 'standalone', { value: true, configurable: true }))
+
+test('表 O の O1・O3: ホーム画面のアプリを開くと、一覧の URL からでもホームが出る。再読み込みでは今の画面のまま', async ({ page }) => {
+  await asHomeScreenApp(page)
+  await page.goto('/list')
+  await expect(page).toHaveURL(/\/$/)
+  await expect(page.getByRole('navigation', { name: '画面の切り替え' }).getByRole('link', { name: /ホーム/ })).toHaveAttribute('aria-current', 'page')
+  await page.getByRole('navigation', { name: '画面の切り替え' }).getByRole('link', { name: /一覧/ }).click()
+  await expect(page).toHaveURL(/\/list$/)
+  await page.reload()
+  await expect(page).toHaveURL(/\/list$/)
+})
+
+test('表 O の O2: 通知から開いたときは、最初の読み込みでも通知の行き先が出る(印は URL から消す)', async ({ page }) => {
+  await asHomeScreenApp(page)
+  await page.goto('/stock?launch=notify')
+  await expect(page).toHaveURL(/\/stock$/)
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('消耗品の在庫')
+})

@@ -14,7 +14,9 @@ import { Stock } from './pages/Stock'
 import { Totals } from './pages/Totals'
 import { Trend } from './pages/Trend'
 
-export const router = createBrowserRouter([
+/** 画面の行き先。読み込んだ時の URL で作られるので、URL を書き換える処理(main.tsx)の後に呼ぶ */
+export const createRouter = () =>
+  createBrowserRouter([
   // 下のタブ(ホーム・撮る・一覧・在庫・設定)
   { path: '/', element: <Home /> },
   { path: '/capture', element: <Capture /> },

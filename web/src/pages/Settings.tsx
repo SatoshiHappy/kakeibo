@@ -17,36 +17,36 @@ export function Settings() {
       {/* 分け方: 機能の種類で分け、よく使う順に並べる(見出しで「なぜここにあるか」が分かるように。2026-11-17 ユーザー指示・似た製品と HIG の Menus) */}
       <div className="setlist">
         <section className="panel" aria-labelledby="set-month">
-          <h2 id="set-month">月ごとの作業</h2>
+          <h2 id="set-month">毎月</h2>
           <Link className="lrow" to="/review">
-            <span className="mi"><Icon name="check" />確かめる(カード明細とレシート)</span>
+            <span className="mi"><Icon name="check" />要確認</span>
             {/* 設定のタブの印と同じ数(どの行の印かが分かるように) */}
             <span className="sub">{review > 0 && <b className="cnt num">{review}<span className="visually-hidden"> 件</span> </b>}›</span>
           </Link>
           <Link className="lrow" to="/import">
-            <span className="mi"><Icon name="upload" />楽天カードの明細を取り込む</span>
-            <span className="sub">月 1 回 · PC ›</span>
+            <span className="mi"><Icon name="upload" />明細の取り込み</span>
+            <span className="sub">PC ›</span>
           </Link>
         </section>
         <section className="panel" aria-labelledby="set-view">
-          <h2 id="set-view">振り返る</h2>
+          <h2 id="set-view">振り返り</h2>
           <Link className="lrow" to="/trend?from=settings">
-            <span className="mi"><Icon name="chart" />月ごとの推移</span>
+            <span className="mi"><Icon name="chart" />推移</span>
             <span className="sub">›</span>
           </Link>
           <Link className="lrow" to="/totals">
-            <span className="mi"><Icon name="sum" />費目ごとの総計(臨時・医療など)</span>
+            <span className="mi"><Icon name="sum" />費目ごとの合計</span>
             <span className="sub">›</span>
           </Link>
         </section>
         <section className="panel" aria-labelledby="set-settings">
-          <h2 id="set-settings">家計簿の設定(家族で共通)</h2>
+          <h2 id="set-settings">家族で共通</h2>
           <Link className="lrow" to="/prefs">
-            <span className="mi"><Icon name="gear" />費目と月の予算</span>
+            <span className="mi"><Icon name="gear" />予算</span>
             <span className="sub">›</span>
           </Link>
           <Link className="lrow" to="/recurring">
-            <span className="mi"><Icon name="repeat" />毎月決まった支出(家賃など)</span>
+            <span className="mi"><Icon name="repeat" />定期の支出</span>
             <span className="sub">›</span>
           </Link>
         </section>
@@ -90,7 +90,6 @@ function ColorChoice() {
           </button>
         ))}
       </div>
-      <p className="note">自動は iPhone の設定アプリの明暗に合わせます(今は{SCHEME_NAME[system]})。</p>
     </div>
   )
 }

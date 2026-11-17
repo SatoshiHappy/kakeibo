@@ -25,7 +25,7 @@ export function Totals() {
   const choice = choices.find((c) => c.key === picked) ?? { key: picked, label: `${picked}年`, note: `${picked}年 1/1〜12/31` }
 
   return (
-    <Screen label="費目ごとの総計" tabs={false} top={<TopBar title="費目ごとの総計" left={{ kind: 'back', to: '/settings', label: '設定に戻る' }} />}>
+    <Screen label="費目ごとの合計" tabs={false} top={<TopBar title="費目ごとの合計" left={{ to: '/settings', label: '設定に戻る' }} />}>
       <div className="seg" role="group" aria-label="期間">
         {choices.map((c) => (
           <button key={c.key} type="button" aria-pressed={picked === c.key} onClick={() => setPicked(c.key)}>

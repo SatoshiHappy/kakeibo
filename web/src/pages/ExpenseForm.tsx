@@ -55,9 +55,9 @@ const storeKey = (m: Mode) => `kakeibo-form:${m.kind === 'receipt' ? `receipt-${
 const backOf = (m: Mode, from: string | null) =>
   m.kind === 'expense'
     ? from === 'review'
-      ? ({ kind: 'back', to: '/review', label: '確かめるに戻る' } as const)
-      : ({ kind: 'back', to: '/list', label: '一覧に戻る' } as const)
-    : ({ kind: 'back', to: '/capture', label: '撮るに戻る' } as const)
+      ? ({ to: '/review', label: '要確認に戻る' } as const)
+      : ({ to: '/list', label: '一覧に戻る' } as const)
+    : ({ to: '/capture', label: '撮るに戻る' } as const)
 
 /** 保存の後に古くなる一覧(撮る・ホーム・一覧・在庫・確かめる) */
 const refetchLists = () =>
@@ -165,7 +165,7 @@ function ExpenseFormPage({ mode }: { mode: Mode }) {
   )
 }
 
-type Back = { kind: 'back'; to: string; label: string }
+type Back = { to: string; label: string }
 
 function errorText(e: unknown): string {
   if (!(e instanceof ApiError) || e.status === null) return '通信できませんでした。通信のある所でもう一度押してください。'

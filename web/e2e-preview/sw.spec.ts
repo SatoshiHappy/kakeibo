@@ -1,5 +1,9 @@
 // 本番のビルド: 表 K の K2 → K3 と、Service Worker が画面と /assets/* を端末に置くこと(基盤 §2.3 の 1)
+import { readFileSync } from 'node:fs'
 import { expect, test } from '@playwright/test'
+
+// 今の画面の箱の名前は public/sw.js の CACHE から読む(sw.js を変えるたびに名前を上げるので、決め打ちしない。古い箱を読んで通らないように完全一致で開く)
+const CACHE = /const CACHE = '([^']+)'/.exec(readFileSync(new URL('../public/sw.js', import.meta.url), 'utf8'))![1]!
 
 test('K2 → K3: 401 で _login=1 を付けて Service Worker を通さず読み直し、また 401 なら帯を出して止まる', async ({ page }) => {
   // 読み込みの要求を数える(framenavigated は WebKit で 1 回の読み込みに 2 回出るので使わない)
@@ -23,7 +27,7 @@ test('Service Worker が画面の HTML と、それが指す /assets/* を端末
   await expect(page.getByText('ログインを確かめられません')).toBeVisible({ timeout: 20_000 })
   await page.evaluate(() => navigator.serviceWorker.ready)
   await expect
-    .poll(async () => page.evaluate(async () => (await (await caches.open('kakeibo-shell-v2')).keys()).map((r) => new URL(r.url).pathname).sort()))
+    .poll(async () => page.evaluate(async (name) => (await (await caches.open(name)).keys()).map((r) => new URL(r.url).pathname).sort(), CACHE))
     .toEqual(expect.arrayContaining(['/', expect.stringMatching(/^\/assets\/index-.*\.js$/), expect.stringMatching(/^\/assets\/index-.*\.css$/)]))
 })
 
@@ -35,7 +39,7 @@ test('字体は同梱して使う時に端末に置き、画面を取り直し�
   await page.goto('/')
   await expect(page.getByText('ログインを確かめられません')).toBeVisible({ timeout: 20_000 })
   await page.evaluate(() => navigator.serviceWorker.ready)
-  const fonts = () => page.evaluate(async () => (await (await caches.open('kakeibo-shell-v2')).keys()).map((r) => new URL(r.url).pathname).filter((p) => /\.woff2?$/.test(p)))
+  const fonts = () => page.evaluate(async (name) => (await (await caches.open(name)).keys()).map((r) => new URL(r.url).pathname).filter((p) => /\.woff2?$/.test(p)), CACHE)
   await expect.poll(async () => (await page.reload(), (await fonts()).length), { timeout: 20_000 }).toBeGreaterThan(0)
   const before = await fonts()
   // 取り直し(画面を開くたびに裏で走る)の後も残る

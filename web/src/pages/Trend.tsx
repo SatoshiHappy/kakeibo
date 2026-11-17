@@ -20,10 +20,10 @@ export function Trend() {
   const [picked, setPicked] = useState(to)
   // 設定から開いたら設定へ、ホームのグラフから開いたらホームへ戻る
   const [search] = useSearchParams()
-  const back = search.get('from') === 'settings' ? ({ kind: 'back', to: '/settings', label: '設定に戻る' } as const) : ({ kind: 'back', to: '/', label: 'ホームに戻る' } as const)
+  const back = search.get('from') === 'settings' ? ({ to: '/settings', label: '設定に戻る' } as const) : ({ to: '/', label: 'ホームに戻る' } as const)
 
   return (
-    <Screen label="推移" tabs={false} top={<TopBar title="月ごとの推移" left={back} />}>
+    <Screen label="推移" tabs={false} top={<TopBar title="推移" left={back} />}>
       <div className="seg" role="group" aria-label="期間">
         {PERIODS.map((p) => (
           <button key={p} type="button" aria-pressed={n === p} onClick={() => setN(p)}>

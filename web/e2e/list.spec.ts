@@ -58,3 +58,16 @@ test('月の支出を日ごとに並べ、絞り込みと印(表 W)が出て、�
     for (const id of ids) await page.request.delete(`/api/expenses/${id}`, { headers: { origin } })
   }
 })
+
+test('一覧の月の帯: 前の月へ移ると月が URL に入り、次の月で今月に戻る。今月より先へは進めず、月の合計は › の手前に出る', async ({ page }) => {
+  await page.goto('/list')
+  const bar = page.locator('.bar-top')
+  const next = bar.getByRole('button', { name: '次の月' })
+  await expect(next).toBeDisabled()
+  await bar.getByRole('button', { name: '前の月' }).click()
+  await expect(page).toHaveURL(/\/list\?month=\d{4}-\d{2}$/)
+  await next.click()
+  await expect(page).toHaveURL(/\/list$/)
+  const [sum, nextBox] = await Promise.all([bar.locator('.hsum').boundingBox(), next.boundingBox()])
+  expect(sum!.x + sum!.width).toBeLessThanOrEqual(nextBox!.x + 1)
+})

@@ -1,10 +1,10 @@
 // 一覧(見本はモック 14 版の list)。正本: データと照合 §4.8・表 W
 import { useState } from 'react'
-import { Link, useSearchParams } from 'react-router'
+import { Link } from 'react-router'
 import { Icon, type IconName } from '../components/Icon'
-import { Screen } from '../components/Shell'
+import { MonthBar, Screen, useMonthParam } from '../components/Shell'
 import { byDay, dayLabel, matches, rowMark, type Filter, type ListExpense, type ListResponse } from '../lib/expenseList'
-import { currentMonth, isMonth, shiftMonth, yen } from '../lib/format'
+import { yen } from '../lib/format'
 import { useApiQuery } from '../lib/query'
 
 const FILTERS: { key: Filter; label: string }[] = [
@@ -26,35 +26,32 @@ const MARK: Record<string, { icon: IconName; cls: string } | undefined> = {
 }
 
 export function List() {
-  const [params, setParams] = useSearchParams()
-  const thisMonth = currentMonth()
-  const raw = params.get('month')
-  const month = isMonth(raw) && raw <= thisMonth ? raw : thisMonth
-  const go = (m: string) => setParams(m === thisMonth ? {} : { month: m })
+  const nav = useMonthParam()
+  const { month, params } = nav
   const q = useApiQuery<ListResponse>(`/api/expenses?month=${month}`)
   // ホームの「固定費」の行から来たら固定費で絞って始める(?filter=fixed。ほかの値は「すべて」)
   const [filter, setFilter] = useState<Filter>(() => (params.get('filter') === 'fixed' ? 'fixed' : 'all'))
   const total = q.data?.expenses.reduce((a, e) => a + e.amount, 0) ?? null
 
   const top = (
-    <header className="bar-top">
-      <button className="iconbtn" type="button" aria-label="前の月" onClick={() => go(shiftMonth(month, -1))}>
-        <Icon name="back" />
-      </button>
-      <h1 className="mhead">
-        <span className="sub">{Number(month.slice(0, 4))}年</span>
-        {Number(month.slice(5, 7))}月の支出
-      </h1>
-      {total !== null && (
-        <span className="hsum">
-          <b className="num">{yen(total)}</b>
-          <span className="faint">固定費・臨時込み</span>
-        </span>
-      )}
-      <button className="iconbtn" type="button" aria-label="次の月" disabled={month >= thisMonth} onClick={() => go(shiftMonth(month, 1))}>
-        <Icon name="next" />
-      </button>
-    </header>
+    <MonthBar
+      title={
+        <>
+          <span className="sub">{Number(month.slice(0, 4))}年</span>
+          {Number(month.slice(5, 7))}月の支出
+        </>
+      }
+      nav={nav}
+      layout="twoLine"
+      aside={
+        total !== null && (
+          <span className="hsum">
+            <b className="num">{yen(total)}</b>
+            <span className="faint">固定費・臨時込み</span>
+          </span>
+        )
+      }
+    />
   )
 
   return (

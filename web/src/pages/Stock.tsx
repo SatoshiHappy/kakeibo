@@ -125,7 +125,7 @@ function StockBody({ items, onEdit, actions }: { items: StockItem[]; onEdit: (i:
       {soon.length > 0 && (
         <section aria-labelledby="stock-soon">
           <h2 className="sect" id="stock-soon">
-            <span className="soon">そろそろ買う({soon.length})</span>
+            <span className="soon">買い足し({soon.length})</span>
             <span className="faint">なくなる日が近い順</span>
           </h2>
           <ul className="plain kgrid">
@@ -231,8 +231,8 @@ function PushBox() {
   const text: Record<PushState, string> = {
     unsupported: '通知は、ホーム画面に追加したアプリで使えます。',
     denied: '通知が止められています。iPhone の設定アプリの「通知」で許可してください。',
-    off: 'そろそろ買う品物を、朝 9 時にこの iPhone に知らせる。',
-    on: 'そろそろ買う品物を、朝 9 時にこの iPhone に知らせます。',
+    off: '買い足す品物を、朝 9 時にこの iPhone に知らせる。',
+    on: '買い足す品物を、朝 9 時にこの iPhone に知らせます。',
   }
   return (
     <div className="pushbox">
@@ -308,7 +308,7 @@ function StockDialog({ target, onClose, onRetire }: { target: StockItem | 'new' 
             <input ref={isNew ? undefined : first} name="count" type="number" inputMode="numeric" required min={0} step={1} defaultValue={item?.quantity ?? 0} />
           </label>
           <label className="fld">
-            <span>なくなる何日前から「そろそろ買う」</span>
+            <span>なくなる何日前から「買い足し」</span>
             <input name="notifyDays" type="number" inputMode="numeric" required min={0} max={365} step={1} defaultValue={item?.notifyDays ?? 7} />
           </label>
           {error && (

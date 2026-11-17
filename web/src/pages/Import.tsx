@@ -45,7 +45,7 @@ export function Import() {
   )
   const err = send.error
   return (
-    <Screen label="明細の取り込み" tabs={false} top={<TopBar title="明細の取り込み" left={{ kind: 'back', to: '/settings', label: '設定に戻る' }} right={right} />}>
+    <Screen label="明細の取り込み" tabs={false} top={<TopBar title="明細の取り込み" left={{ to: '/settings', label: '設定に戻る' }} right={right} />}>
       <section className="panel helpbox" id={helpId} hidden={!help} aria-label="CSV の出し方">
         <h2>
           <span>CSV の出し方(PC のブラウザ)</span>
@@ -116,7 +116,7 @@ function Result({ r }: { r: ImportResult }) {
       {r.reviewCount > 0 && (
         <div className="pad">
           <Link className="softbtn wide" to="/review">
-            確かめる({r.reviewCount})へ
+            要確認({r.reviewCount})へ
           </Link>
         </div>
       )}

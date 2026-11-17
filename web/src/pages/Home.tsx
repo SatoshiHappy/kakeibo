@@ -1,31 +1,20 @@
 // ホーム(見本はモック 14 版・15 版の home)。正本: データと照合 §4.5・表 G・表 H、要求の集計・在庫
 import { Pie, PieChart, Sector, type PieSectorShapeProps } from 'recharts'
-import { Link, useSearchParams } from 'react-router'
+import { Link } from 'react-router'
 import { Icon } from '../components/Icon'
-import { Screen } from '../components/Shell'
+import { MonthBar, Screen, useMonthParam } from '../components/Shell'
 import { homeRows, pieSlices, type HomeRows, type Slice } from '../lib/categories'
-import { currentMonth, isMonth, jstToday, monthLabel, shiftMonth, shortDate, yen } from '../lib/format'
+import { jstToday, monthLabel, shortDate, yen } from '../lib/format'
 import { homePath, type HomeResponse } from '../lib/home'
 import { useApiQuery } from '../lib/query'
 
 export function Home() {
-  const [params, setParams] = useSearchParams()
-  const thisMonth = currentMonth()
-  const raw = params.get('month')
-  const month = isMonth(raw) && raw <= thisMonth ? raw : thisMonth
-  const go = (m: string) => setParams(m === thisMonth ? {} : { month: m })
+  const nav = useMonthParam()
+  const { month, thisMonth } = nav
   const q = useApiQuery<HomeResponse>(homePath(month))
 
   const top = (
-    <header className="bar-top">
-      <button className="iconbtn" type="button" aria-label="前の月" onClick={() => go(shiftMonth(month, -1))}>
-        <Icon name="back" />
-      </button>
-      <h1 className="center">{monthLabel(month)}</h1>
-      <button className="iconbtn" type="button" aria-label="次の月" disabled={month >= thisMonth} onClick={() => go(shiftMonth(month, 1))}>
-        <Icon name="next" />
-      </button>
-    </header>
+    <MonthBar nav={nav} title={monthLabel(month)} layout="center" />
   )
 
   return (
@@ -58,16 +47,16 @@ function HomeBody({ data, month, isCurrent }: { data: HomeResponse; month: strin
             )}
             <Link className="trendlink" to="/trend">
               <Icon name="chart" size={16} />
-              月ごとの推移
+              推移
             </Link>
           </div>
           <Donut slices={pieSlices(data.categories)} />
         </div>
         <CategoryRows rows={rows} month={month} />
       </section>
-      <nav className="panel" aria-label="そろそろ買う・確かめること">
+      <nav className="panel" aria-label="買い足し・要確認">
         <Link className="lrow" to="/stock">
-          <span>そろそろ買う</span>
+          <span>買い足し</span>
           <span>
             <b className="cnt num">{data.stockSoon.length}<span className="visually-hidden"> 件</span></b> <span className="faint">›</span>
           </span>
@@ -84,7 +73,7 @@ function HomeBody({ data, month, isCurrent }: { data: HomeResponse; month: strin
           </Link>
         )}
         <Link className="lrow" to="/review">
-          <span>確かめること</span>
+          <span>要確認</span>
           <span>
             <b className="cnt num">{data.reviewCount}<span className="visually-hidden"> 件</span></b> <span className="faint">›</span>
           </span>

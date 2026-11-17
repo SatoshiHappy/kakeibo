@@ -49,7 +49,7 @@ export function RecurringPage() {
   )
   const data = q.data
   return (
-    <Screen label="毎月決まった支出" tabs={false} top={<TopBar title="毎月決まった支出" left={{ kind: 'back', to: '/settings', label: '設定に戻る' }} right={right} />}>
+    <Screen label="定期の支出" tabs={false} top={<TopBar title="定期の支出" left={{ to: '/settings', label: '設定に戻る' }} right={right} />}>
       {error && (
         <div className="errline" role="alert">
           <span>{error}</span>
@@ -173,7 +173,7 @@ function RecurringDialog({
     <dialog ref={ref} className="sheet" aria-labelledby={titleId} onClose={onClose}>
       {target !== null && (
         <form key={item?.id ?? 'new'} onSubmit={submit}>
-          <h2 id={titleId}>{item ? '毎月決まった支出を直す' : '毎月決まった支出を足す'}</h2>
+          <h2 id={titleId}>{item ? '定期の支出を直す' : '定期の支出を足す'}</h2>
           <label className="fld">
             <span>名前(一覧の店の欄)</span>
             <input ref={first} name="name" required maxLength={100} placeholder="家賃" defaultValue={item?.name ?? ''} />
@@ -234,7 +234,7 @@ function RecurringDialog({
       <Confirm
         danger
         open={confirmStop}
-        title="この毎月決まった支出を止めますか?"
+        title="この定期の支出を止めますか?"
         body="次の月から支出を作りません。作った支出は残ります。止めた登録は戻せないので、また使うときは新しく登録します。"
         action="止める"
         busy={stop.isPending}

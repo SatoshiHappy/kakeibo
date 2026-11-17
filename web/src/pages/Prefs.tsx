@@ -21,7 +21,7 @@ function errorText(e: unknown) {
   if (e.code === 'duplicate_name') return '同じ名前の費目があります。'
   if (e.code === 'system_category') return 'この費目はやめられません(未分類か、自動の規則が使っています)。'
   if (e.code === 'budget_not_variable') return 'この費目は固定費か臨時になったので、予算を入れられません。読み直してください。'
-  if (e.code === 'used_by_recurring') return '毎月決まった支出がこの費目を使っています。先に設定の「毎月決まった支出」で止めるか、費目を変えてください。'
+  if (e.code === 'used_by_recurring') return '定期の支出がこの費目を使っています。先に設定の「定期の支出」で止めるか、費目を変えてください。'
   return '保存できませんでした。もう一度入れてください。'
 }
 
@@ -89,7 +89,7 @@ export function Prefs() {
   const live = q.data?.categories.filter((c) => !c.retired) ?? []
   const total = budgetTotal(live)
   return (
-    <Screen label="費目と月の予算" tabs={false} top={<TopBar title="費目と月の予算" left={{ kind: 'back', to: '/settings', label: '設定に戻る' }} />}>
+    <Screen label="予算" tabs={false} top={<TopBar title="予算" left={{ to: '/settings', label: '設定に戻る' }} />}>
       {error && (
         <div className="errline" role="alert">
           <span>{error}</span>
